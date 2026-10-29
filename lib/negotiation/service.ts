@@ -7,6 +7,7 @@ import {
   type PolicyView,
 } from '@/lib/contracts';
 import { toPolicyView } from './phrase';
+import { latestOfferCents } from './theater';
 import type { NegotiationStore } from './store';
 import { runTurn } from './turn';
 
@@ -80,6 +81,65 @@ export function createNegotiationService({ store, llm, now = () => new Date(), o
 
     async getNegotiation(id: string) {
       return { negotiation: await mustGet(id), messages: await store.listMessages(id) };
+    },
+
+    /**
+     * Everything the Theater shows. The floor is included ONLY for the listing owner
+     * (the locked line on their price ladder); buyers never receive it.
+     */
+    async getTheaterView(id: string, viewerId?: string) {
+      const negotiation = await mustGet(id);
+      const [messages, policy, owner] = await Promise.all([
+        store.listMessages(id),
+        store.getPolicy(negotiation.listingId),
+        store.getListingOwner(negotiation.listingId),
+      ]);
+      if (!policy || !owner) throw new NegotiationError('listing not found', 404);
+      const isOwner = !!viewerId && viewerId === owner.ownerId;
+      return {
+        negotiation,
+        messages,
+        listPriceCents: policy.listPriceCents,
+        ownerId: owner.ownerId,
+        floorCents: isOwner ? policy.floorCents : undefined,
+        mode: policy.mode,
+      };
+    },
+
+    /** "Ask me" mode: the owner accepts or declines the buyer's latest offer. */
+    async sellerDecision(
+      negotiationId: string,
+      decision: 'accept' | 'decline',
+      userId?: string,
+    ): Promise<{ negotiation: Negotiation; messages: NegoMessage[] }> {
+      const negotiation = await mustGet(negotiationId);
+      const owner = await store.getListingOwner(negotiation.listingId);
+      if (!owner || !userId || owner.ownerId !== userId) {
+        throw new NegotiationError('only the listing owner can decide', 403);
+      }
+      if (negotiation.status !== 'needs_seller') {
+        throw new NegotiationError(`negotiation is ${negotiation.status}`, 409);
+      }
+      const offer = latestOfferCents(await store.listMessages(negotiationId));
+      if (decision === 'accept' && offer === undefined) {
+        throw new NegotiationError('there is no offer to accept', 409);
+      }
+
+      const text =
+        decision === 'accept'
+          ? `The seller accepted $${((offer ?? 0) / 100).toFixed((offer ?? 0) % 100 === 0 ? 0 : 2)}.`
+          : 'The seller declined this offer.';
+      const note = await store.addMessage({ negotiationId, from: 'seller', text });
+
+      let updated = await store.updateNegotiation(
+        negotiationId,
+        decision === 'accept' ? { status: 'agreed', agreedCents: offer } : { status: 'declined' },
+      );
+      if (decision === 'accept' && onAgreed) {
+        const deal = await onAgreed(updated);
+        if (deal) updated = await store.updateNegotiation(negotiationId, { dealId: deal.dealId });
+      }
+      return { negotiation: updated, messages: [note] };
     },
 
     async handleBuyerMessage(
