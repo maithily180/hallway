@@ -123,6 +123,14 @@ describe('outgoing check', () => {
     expect(extractAmountsCents('$36, 30 dollars and $1,250.50')).toEqual([3600, 125050, 3000]);
   });
 
+  it('catches spelled-out and cents amounts, which a model could use to leak a number', () => {
+    expect(extractAmountsCents('twenty-seven dollars')).toEqual([2700]);
+    expect(extractAmountsCents('One hundred and five bucks')).toEqual([10500]);
+    expect(extractAmountsCents('as low as 2750 cents')).toEqual([2750]);
+    expect(checkOutgoing('Thirty-six dollars works.', 3600).ok).toBe(true);
+    expect(checkOutgoing('The lowest is twenty-seven dollars.', 3600).ok).toBe(false);
+  });
+
   it('allows only the chosen price', () => {
     expect(checkOutgoing('I can do $36.', 3600).ok).toBe(true);
     expect(checkOutgoing('I can do $36, floor is $27.50', 3600).ok).toBe(false);

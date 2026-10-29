@@ -31,7 +31,7 @@ export function templateReply(decision: Decision, blocked?: BlockedReason): stri
     case 'needs_seller':
       return `Let me check with the seller on ${price} and get right back to you.`;
     case 'decline':
-      return `I'm sorry, we can't get there. ${price} is the lowest I can offer.`;
+      return `I'm sorry, we couldn't agree this time. My last offer of ${price} still stands.`;
   }
 }
 

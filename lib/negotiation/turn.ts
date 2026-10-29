@@ -40,7 +40,10 @@ export async function runTurn(input: {
 
   // Flagged messages never reach the model: no offer, round not counted, price held.
   const blockedReason = scanBuyerMessage(buyerText);
-  const parsed = blockedReason ? NO_OFFER : await parseBuyerMessage(llm, buyerText);
+  // A malformed or absurd model output (schema failure, model error) is "no offer", never a guess.
+  const parsed = blockedReason
+    ? NO_OFFER
+    : await parseBuyerMessage(llm, buyerText).catch((): ParsedOffer => NO_OFFER);
 
   const decision = decide(policy, state, parsed, now);
 
