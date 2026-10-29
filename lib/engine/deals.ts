@@ -1,4 +1,5 @@
-import type { Deal, DealState, DealType, Negotiation } from '@/lib/contracts';
+import type { Deal, DealState, DealType, InspectionResult, Negotiation, PhotoUrl } from '@/lib/contracts';
+import { signHandoverToken, verifyHandoverToken } from './handover-token';
 import { requestId, type PayPalApi } from '@/lib/paypal';
 import type { DealStore } from './store';
 import { transition } from './transition';
@@ -20,12 +21,32 @@ export interface DealServiceDeps {
   payeeMode?: 'platform' | 'direct';
   returnUrl?: string;
   cancelUrl?: string;
+  /** The Inspector (Chandrani's inspectCondition, or a mock). Proposes a deduction; never decides. */
+  inspect?: InspectFn;
 }
+
+export type InspectFn = (args: {
+  dealId: string;
+  listingId: string;
+  before: PhotoUrl[];
+  after: PhotoUrl[];
+}) => Promise<InspectionResult>;
+
+const clamp = (n: number, min: number, max: number) => Math.min(Math.max(n, min), max);
+
+const cleanInspection: InspectFn = async () => ({
+  sameItem: true,
+  newDamage: [],
+  missingParts: [],
+  confidence: 0.9,
+  proposedDeductionCents: 0,
+  summary: 'Same unit, no new damage.',
+});
 
 const DAY_MS = 86_400_000;
 
 export function createDealService(deps: DealServiceDeps) {
-  const { store, paypal, now = () => new Date() } = deps;
+  const { store, paypal, now = () => new Date(), inspect = cleanInspection } = deps;
   const payeeMode = deps.payeeMode ?? (process.env.PAYEE_MODE === 'direct' ? 'direct' : 'platform');
   const returnUrl = deps.returnUrl ?? `${process.env.APP_URL ?? 'http://localhost:3000'}/deals`;
   const cancelUrl = deps.cancelUrl ?? returnUrl;
@@ -125,7 +146,7 @@ export function createDealService(deps: DealServiceDeps) {
             captureId,
           );
           await store.saveDeal(deal);
-          return payoutSeller(deal);
+          return payoutSeller(deal, deal.amountCents, captureId);
         }
 
         const { authorizationId } = await paypal.authorizeOrder(paypalOrderId, requestId(deal.id, 'authorize'));
@@ -154,16 +175,143 @@ export function createDealService(deps: DealServiceDeps) {
         return store.saveDeal(deal);
       });
     },
+
+    /** The renter's QR token. Only the buyer may fetch it. */
+    handoverToken(dealId: string, userId?: string): Promise<string> {
+      return mustGet(dealId).then((deal) => {
+        assertBuyer(deal, userId);
+        return signHandoverToken(deal.id);
+      });
+    },
+
+    /** Owner scans the renter's QR and records "before" photos: HELD -> OUT. */
+    handover(dealId: string, qrToken: string, beforePhotos: PhotoUrl[], userId?: string): Promise<Deal> {
+      return withLock(dealId, async () => {
+        const deal = await mustGet(dealId);
+        if (userId && userId !== deal.sellerId) throw new DealError('only the owner can confirm handover', 403);
+        if (deal.state === 'OUT') return deal; // repeat scan
+        if (deal.state !== 'HELD') throw new DealError(`cannot hand over a deal in ${deal.state}`, 409);
+        if (!verifyHandoverToken(deal.id, qrToken)) throw new DealError('invalid handover code', 400);
+        if (!beforePhotos.length) throw new DealError('before photos are required', 400);
+
+        await store.saveInspection({ dealId: deal.id, beforePhotos, afterPhotos: [] });
+        return store.saveDeal(move(deal, 'OUT'));
+      });
+    },
+
+    /** Renter uploads "after" photos; the Inspector proposes a deduction. OUT -> RETURNED. */
+    returnItem(
+      dealId: string,
+      afterPhotos: PhotoUrl[],
+      userId?: string,
+    ): Promise<{ deal: Deal; inspection: InspectionResult }> {
+      return withLock(dealId, async () => {
+        const deal = await mustGet(dealId);
+        assertBuyer(deal, userId);
+        const existing = await store.getInspection(deal.id);
+        if (deal.state === 'RETURNED' && existing?.result) return { deal, inspection: existing.result };
+        if (deal.state !== 'OUT' || !existing) throw new DealError(`cannot return a deal in ${deal.state}`, 409);
+        if (!afterPhotos.length) throw new DealError('after photos are required', 400);
+
+        const raw = await inspect({
+          dealId: deal.id,
+          listingId: deal.listingId,
+          before: existing.beforePhotos,
+          after: afterPhotos,
+        });
+        // The model only proposes; a deduction can never exceed the deposit.
+        const inspection = { ...raw, proposedDeductionCents: clamp(raw.proposedDeductionCents, 0, deal.depositCents) };
+        await store.saveInspection({ ...existing, afterPhotos, result: inspection });
+        const next = await store.saveDeal(move(deal, 'RETURNED'));
+        return { deal: await store.saveDeal({ ...next, inspectionId: deal.id }), inspection };
+      });
+    },
+
+    /**
+     * Capture what is owed with final_capture so PayPal releases the rest of the hold.
+     * Clean return: rent only. Damage: rent + deduction, only if owner and renter both agree;
+     * a contested deduction goes to CLAIMED for human review and captures nothing yet.
+     */
+    settle(
+      dealId: string,
+      input: { deductionCents: number; ownerOk: boolean; renterOk: boolean },
+    ): Promise<Deal> {
+      return withLock(dealId, async () => {
+        const deal = await mustGet(dealId);
+        if (deal.state === 'SETTLED') return deal; // repeat is a no-op
+        if (deal.state !== 'RETURNED' && deal.state !== 'CLAIMED') {
+          throw new DealError(`cannot settle a deal in ${deal.state}`, 409);
+        }
+        if (!deal.paypal.authorizationId) throw new DealError('deal has no authorization', 409);
+        const { deductionCents } = input;
+        if (!Number.isInteger(deductionCents) || deductionCents < 0 || deductionCents > deal.depositCents) {
+          throw new DealError('deduction must be between 0 and the deposit', 400);
+        }
+
+        if (deductionCents > 0 && !(input.ownerOk && input.renterOk)) {
+          if (!input.ownerOk) throw new DealError('owner must confirm a deduction', 400);
+          return deal.state === 'CLAIMED' ? deal : store.saveDeal(move(deal, 'CLAIMED'));
+        }
+
+        const owedCents = deal.amountCents + deductionCents;
+        await assertSellerPayable(deal);
+        const { captureId } = await paypal.captureAuthorization({
+          authorizationId: deal.paypal.authorizationId,
+          amountCents: owedCents,
+          finalCapture: true,
+          requestId: requestId(deal.id, 'capture-final'),
+        });
+        const captured: Deal = {
+          ...deal,
+          paypal: { ...deal.paypal, captureIds: [...deal.paypal.captureIds, captureId] },
+        };
+        const inspection = await store.getInspection(deal.id);
+        if (inspection) {
+          await store.saveInspection({ ...inspection, ownerDecision: 'ok', renterDecision: 'ok' });
+        }
+        return payoutSeller(captured, owedCents, captureId);
+      });
+    },
+
+    /**
+     * Authorizations are only reliably capturable in the first 3 days. Long rentals refresh
+     * the hold from day 3 on (allowed until day 29).
+     */
+    reauthorize(dealId: string): Promise<Deal> {
+      return withLock(dealId, async () => {
+        const deal = await mustGet(dealId);
+        const held = deal.timeline.find((t) => t.state === 'HELD');
+        if ((deal.state !== 'HELD' && deal.state !== 'OUT') || !deal.paypal.authorizationId || !held) {
+          throw new DealError('no active authorization to refresh', 409);
+        }
+        const days = Math.floor((now().getTime() - Date.parse(held.at)) / DAY_MS);
+        if (days < 3) return deal;
+        if (days > 29) throw new DealError('authorization is past its 29-day limit', 409);
+
+        const { authorizationId } = await paypal.reauthorize(
+          deal.paypal.authorizationId,
+          deal.amountCents + deal.depositCents,
+          requestId(deal.id, `reauth-day-${days}`),
+        );
+        return store.saveDeal({ ...deal, paypal: { ...deal.paypal, authorizationId } });
+      });
+    },
   };
 
-  /** Plan B: pay the seller from the platform balance. Plan A: the seller was already the payee. */
-  async function payoutSeller(deal: Deal): Promise<Deal> {
-    if (payeeMode === 'direct') return store.saveDeal(move(deal, 'SETTLED'));
+  async function assertSellerPayable(deal: Deal) {
+    if (payeeMode === 'direct') return;
     const terms = await store.getListingTerms(deal.listingId);
-    if (!terms?.sellerPayoutEmail) return deal; // stays PAID; payout can be retried once the seller adds an email
+    if (!terms?.sellerPayoutEmail) throw new DealError('seller has no PayPal email for payout', 409);
+  }
+
+  /** Plan B: pay the seller from the platform balance. Plan A: the seller was already the payee. */
+  async function payoutSeller(deal: Deal, amountCents: number, ref?: string): Promise<Deal> {
+    if (payeeMode === 'direct') return store.saveDeal(move(deal, 'SETTLED', ref));
+    const terms = await store.getListingTerms(deal.listingId);
+    if (!terms?.sellerPayoutEmail) return store.saveDeal(deal); // sale stays PAID until the seller adds an email
     const { payoutBatchId } = await paypal.createPayout({
       batchId: requestId(deal.id, 'payout'),
-      items: [{ receiver: terms.sellerPayoutEmail, amountCents: deal.amountCents }],
+      items: [{ receiver: terms.sellerPayoutEmail, amountCents }],
     });
     return store.saveDeal(move({ ...deal, paypal: { ...deal.paypal, payoutBatchId } }, 'SETTLED', payoutBatchId));
   }

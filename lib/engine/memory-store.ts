@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Deal } from '@/lib/contracts';
-import type { DealStore, ListingTerms } from './store';
+import type { DealStore, InspectionRecord, ListingTerms } from './store';
 
 /** In-memory deal store for tests and no-database mock mode. */
 export function createMemoryDealStore(
@@ -14,6 +14,7 @@ export function createMemoryDealStore(
 ): DealStore {
   const deals = new Map<string, Deal>();
   const events = new Set<string>();
+  const inspections = new Map<string, InspectionRecord>();
 
   return {
     async getListingTerms(listingId) {
@@ -49,6 +50,13 @@ export function createMemoryDealStore(
             (payoutBatchId && d.paypal.payoutBatchId === payoutBatchId),
         ) ?? null
       );
+    },
+    async getInspection(dealId) {
+      return inspections.get(dealId) ?? null;
+    },
+    async saveInspection(record) {
+      inspections.set(record.dealId, record);
+      return record;
     },
     async recordWebhookEvent(id) {
       if (events.has(id)) return false;

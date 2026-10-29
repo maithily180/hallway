@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
-import { DealSchema, type Deal } from '@/lib/contracts';
+import { DealSchema, type Deal, type InspectionResult } from '@/lib/contracts';
 import { db } from '@/lib/db';
-import type { DealStore } from './store';
+import type { DealStore, InspectionRecord } from './store';
 
 const toDeal = (row: Prisma.DealGetPayload<object>): Deal =>
   DealSchema.parse({
@@ -11,6 +11,15 @@ const toDeal = (row: Prisma.DealGetPayload<object>): Deal =>
     end: row.end?.toISOString(),
     paypal: { captureIds: [], ...(row.paypal as object) },
   });
+
+const toInspection = (row: Prisma.InspectionGetPayload<object>): InspectionRecord => ({
+  dealId: row.dealId,
+  beforePhotos: row.beforePhotos,
+  afterPhotos: row.afterPhotos,
+  result: (row.result as InspectionResult | null) ?? undefined,
+  ownerDecision: (row.ownerDecision as InspectionRecord['ownerDecision']) ?? undefined,
+  renterDecision: (row.renterDecision as InspectionRecord['renterDecision']) ?? undefined,
+});
 
 const toRow = (deal: Omit<Deal, 'id'>) => ({
   ...deal,
@@ -58,6 +67,25 @@ export const prismaDealStore: DealStore = {
     if (!or.length) return null;
     const row = await db.deal.findFirst({ where: { OR: or } });
     return row ? toDeal(row) : null;
+  },
+  async getInspection(dealId) {
+    const row = await db.inspection.findUnique({ where: { dealId } });
+    return row ? toInspection(row) : null;
+  },
+  async saveInspection(record) {
+    const data = {
+      beforePhotos: record.beforePhotos,
+      afterPhotos: record.afterPhotos,
+      result: (record.result ?? undefined) as Prisma.InputJsonValue | undefined,
+      ownerDecision: record.ownerDecision ?? null,
+      renterDecision: record.renterDecision ?? null,
+    };
+    const row = await db.inspection.upsert({
+      where: { dealId: record.dealId },
+      create: { dealId: record.dealId, ...data },
+      update: data,
+    });
+    return toInspection(row);
   },
   async recordWebhookEvent(id, type) {
     try {
