@@ -5,6 +5,7 @@ import type { DealStore } from './store';
 import { transition } from './transition';
 
 export class DealError extends Error {
+  override name = 'DealError';
   constructor(
     message: string,
     readonly status: 400 | 403 | 404 | 409,
