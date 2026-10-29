@@ -1,0 +1,132 @@
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+model Community {
+  id          String    @id @default(cuid())
+  name        String
+  emailDomain String
+  pickupSpots String[]
+  users       User[]
+  listings    Listing[]
+}
+
+model User {
+  id          String    @id @default(cuid())
+  name        String
+  email       String    @unique
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id])
+  paypalEmail String?
+  venmoHandle String?
+  reputation  Json      @default("{}")
+}
+
+model Listing {
+  id              String                       @id @default(cuid())
+  ownerId         String
+  communityId     String
+  community       Community                    @relation(fields: [communityId], references: [id])
+  title           String
+  category        String
+  description     String
+  conditionGrade  String
+  defects         String[]
+  photos          String[]
+  modes           String[]
+  salePriceCents  Int?
+  rentPerDayCents Int?
+  depositCents    Int?
+  status          String                       @default("active")
+  embedding       Unsupported("vector(1536)")?
+  createdAt       DateTime                     @default(now())
+  policy          Policy?
+}
+
+model Policy {
+  listingId       String   @id
+  listing         Listing  @relation(fields: [listingId], references: [id])
+  listPriceCents  Int
+  floorCents      Int
+  autoAcceptCents Int
+  mode            String
+  strategy        String
+  deadline        DateTime?
+  maxRounds       Int      @default(4)
+  tone            String   @default("friendly")
+  extrasAllowed   String[]
+}
+
+model Want {
+  id        String   @id @default(cuid())
+  userId    String
+  text      String
+  parsed    Json
+  status    String   @default("open")
+  createdAt DateTime @default(now())
+}
+
+model Negotiation {
+  id               String        @id @default(cuid())
+  listingId        String
+  buyerId          String
+  kind             String
+  rentDays         Int?
+  round            Int           @default(0)
+  lastCounterCents Int?
+  agreedCents      Int?
+  status           String        @default("open")
+  dealId           String?
+  messages         NegoMessage[]
+}
+
+model NegoMessage {
+  id            String      @id @default(cuid())
+  negotiationId String
+  negotiation   Negotiation @relation(fields: [negotiationId], references: [id])
+  from          String
+  text          String
+  parsedOffer   Json?
+  blockedReason String?
+  createdAt     DateTime    @default(now())
+}
+
+model Deal {
+  id           String    @id @default(cuid())
+  listingId    String
+  buyerId      String
+  sellerId     String
+  type         String
+  amountCents  Int
+  depositCents Int       @default(0)
+  start        DateTime?
+  end          DateTime?
+  state        String
+  paypal       Json      @default("{}")
+  inspectionId String?
+  timeline     Json      @default("[]")
+}
+
+model Inspection {
+  id             String   @id @default(cuid())
+  dealId         String   @unique
+  beforePhotos   String[]
+  afterPhotos    String[]
+  result         Json?
+  ownerDecision  String?
+  renterDecision String?
+}
+
+// Processed PayPal webhook events, for deduplication.
+model WebhookEvent {
+  id         String   @id
+  type       String
+  receivedAt DateTime @default(now())
+}
