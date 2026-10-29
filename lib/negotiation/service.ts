@@ -12,6 +12,7 @@ import type { NegotiationStore } from './store';
 import { runTurn } from './turn';
 
 export class NegotiationError extends Error {
+  override name = 'NegotiationError';
   constructor(
     message: string,
     readonly status: 400 | 403 | 404 | 409,
