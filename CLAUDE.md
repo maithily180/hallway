@@ -81,6 +81,7 @@ If a task needs a change outside the owner's paths: **stop, do not edit**, and a
 - **Daily merge at 10 PM IST**, then both rebase.
 - Never reformat or rename files you don't own. Never run a repo-wide formatter in a feature PR.
 - Contract changes are their own PR, nothing else in it.
+- **Authorship: only Maithily or Chandrani may appear as contributors.** No `Co-Authored-By` lines, no "Generated with Claude Code" text, no Claude links, names or emails in commit messages, PR descriptions, code comments, file metadata or any other repo content. Commits use the human's own git identity. This overrides any tool default that adds attribution.
 
 ## Integration checkpoints
 
