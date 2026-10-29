@@ -1,0 +1,50 @@
+# Render Blueprint: one web service + Postgres (with pgvector).
+# Deploy: Render dashboard -> New -> Blueprint -> pick this repo. Fill the `sync: false` secrets.
+databases:
+  - name: hallway-db
+    plan: free
+    databaseName: hallway
+    postgresMajorVersion: "16"
+
+services:
+  - type: web
+    name: hallway
+    runtime: node
+    plan: free
+    healthCheckPath: /api/health
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm db:deploy && pnpm build
+    startCommand: pnpm start
+    autoDeploy: true # redeploys on every push to main
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: hallway-db
+          property: connectionString
+      - key: PAYPAL_ENV
+        value: sandbox
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+      - key: PAYPAL_PLATFORM_EMAIL
+        sync: false
+      - key: NEXT_PUBLIC_PAYPAL_CLIENT_ID
+        sync: false
+      - key: HANDOVER_SECRET
+        generateValue: true
+      - key: APP_URL
+        sync: false # e.g. https://hallway.onrender.com
+      - key: PAYEE_MODE
+        value: platform # set to "direct" if the spike shows Plan A works
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: CAMPUS_EMAIL_DOMAIN
+        value: demo.edu
+      - key: MOCK_PAYPAL
+        value: "0"
+      - key: MOCK_LLM
+        value: "0"
