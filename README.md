@@ -138,6 +138,18 @@ An Anthropic Claude model (vision + tool calling) via `lib/llm`, used to parse b
 
 `pnpm test` runs the engine state machine, the PayPal mock, the negotiation decision function (including the demo script and a floor invariant over thousands of random offers), the services, and the 50-attack injection suite in `tests/negotiation/injection.test.ts`.
 
+### Database integration tests
+
+`tests/integration/db.test.ts` runs the real Prisma stores (negotiation, deals, inspections, webhook dedupe, JSON lookups by PayPal id) against Postgres. It is skipped unless `DATABASE_URL` is set:
+
+```bash
+docker run -d --name hallway-pg -e POSTGRES_PASSWORD=hallway -e POSTGRES_DB=hallway -p 54329:5432 pgvector/pgvector:pg16
+export DATABASE_URL=postgresql://postgres:hallway@127.0.0.1:54329/hallway
+pnpm db:deploy && pnpm test
+```
+
+(The test wipes its tables first, so only point it at a throwaway database.)
+
 ## Sponsor tools
 
 Bryntum Scheduler (rental calendar), Channel3 (new-price anchors) and Render (hosting) are used where noted above; Bryntum and Channel3 land with the listings and calendar work.
