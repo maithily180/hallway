@@ -13,11 +13,12 @@
     "check:floor": "node scripts/check-floor.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
     "next": "15.5.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "server-only": "0.0.1",
-    "zod": "3.25.76"
+    "zod": "4.1.12"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
