@@ -1,1 +1,34 @@
-﻿@import 'tailwindcss';
+@import "tailwindcss";
+
+/* One accent, warm neutrals. */
+:root {
+  --background: #faf7f2;
+  --surface: #ffffff;
+  --foreground: #2b2620;
+  --muted: #7a7064;
+  --border: #e8e1d6;
+  --accent: #e2572b;
+  --accent-foreground: #ffffff;
+  --success: #2f7d4f;
+  --danger: #c0392b;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
