@@ -1,0 +1,9 @@
+{
+  "title": "Portable projector with HDMI cable",
+  "category": "projector",
+  "conditionGrade": "good",
+  "defects": ["Light scuff on the top cover"],
+  "description": "Compact 1080p projector, bright enough for a dorm room movie night. Comes with HDMI cable and power adapter.",
+  "missingInfo": ["Does it include a remote?", "Roughly how many hours has it been used?"],
+  "confidence": 0.82
+}
