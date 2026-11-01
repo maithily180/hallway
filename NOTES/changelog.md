@@ -11,3 +11,4 @@ One line per merged task: date · who · what
 - 2026-10-30 · Maithily · Initial Prisma migration, Render blueprint, /api/health, README
 - 2026-10-30 · Maithily · DB integration tests (Prisma stores vs real Postgres + pgvector); migration verified
 - 2026-11-02 · Chandrani · lib/llm: json, vision, text with one schema retry and MOCK_LLM fixtures (exports `llm`, satisfies LlmApi)
+- 2026-11-02 · Chandrani · Lister (draftListing + POST /api/listings/draft), Pricer (computed prices, Channel3 anchor, LLM one-liner + POST /api/price), inspectCondition with deposit cap and confidence gate
