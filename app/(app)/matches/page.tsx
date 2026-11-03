@@ -26,7 +26,7 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
   const { parsed } = want;
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-xl flex-col gap-5 px-4 py-10">
+    <main className="mx-auto flex max-w-xl flex-col gap-5 px-4 py-6">
       <Link href="/home" className="text-sm text-muted">
         ← New request
       </Link>
