@@ -10,10 +10,12 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "check:floor": "node scripts/check-floor.mjs"
+    "check:floor": "node scripts/check-floor.mjs",
+    "eval:inspector": "vitest run --config vitest.eval.config.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",
+    "@bryntum/scheduler-trial": "7.3.8",
     "next": "15.5.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",

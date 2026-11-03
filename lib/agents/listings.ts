@@ -44,3 +44,8 @@ export function ownerReliability(ownerId: string): number {
 export function ownerName(ownerId: string): string {
   return DEMO_USERS.find((u) => u.id === ownerId)?.name ?? ownerId;
 }
+
+/** Name to show for someone else on campus; unknown people stay anonymous. */
+export function personName(userId: string): string {
+  return DEMO_USERS.find((u) => u.id === userId)?.name ?? "A student";
+}

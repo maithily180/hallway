@@ -1,0 +1,12 @@
+[
+  { "id": "clean-1", "category": "projector", "before": ["projector-before-1.jpg"], "after": ["projector-after-clean-1.jpg"], "damaged": false },
+  { "id": "clean-2", "category": "projector", "before": ["projector-before-2.jpg"], "after": ["projector-after-clean-2.jpg"], "damaged": false },
+  { "id": "clean-3", "category": "drill", "before": ["drill-before-1.jpg"], "after": ["drill-after-clean-1.jpg"], "damaged": false },
+  { "id": "clean-4", "category": "speaker", "before": ["speaker-before-1.jpg"], "after": ["speaker-after-clean-1.jpg"], "damaged": false },
+  { "id": "clean-5", "category": "bike", "before": ["bike-before-1.jpg"], "after": ["bike-after-clean-1.jpg"], "damaged": false },
+  { "id": "scratch-1", "category": "projector", "before": ["projector-before-1.jpg"], "after": ["projector-after-scratch-1.jpg"], "damaged": true },
+  { "id": "scratch-2", "category": "speaker", "before": ["speaker-before-1.jpg"], "after": ["speaker-after-scratch-1.jpg"], "damaged": true },
+  { "id": "scratch-3", "category": "bike", "before": ["bike-before-1.jpg"], "after": ["bike-after-scratch-1.jpg"], "damaged": true },
+  { "id": "missing-cable-1", "before": ["projector-before-2.jpg"], "after": ["projector-after-nocable-2.jpg"], "damaged": true },
+  { "id": "missing-battery-1", "before": ["drill-before-1.jpg"], "after": ["drill-after-nobattery-1.jpg"], "damaged": true }
+]

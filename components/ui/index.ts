@@ -4,5 +4,6 @@ export { Card } from "./Card";
 export { Chip } from "./Chip";
 export { EmptyState } from "./EmptyState";
 export { formatCents } from "./format";
+export { InspectionCard } from "./InspectionCard";
 export { PriceTag } from "./PriceTag";
 export { Sheet } from "./Sheet";
