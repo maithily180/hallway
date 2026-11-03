@@ -34,6 +34,8 @@ export function SellFlow() {
   const [floor, setFloor] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [listingId, setListingId] = useState<string | null>(null);
+  const [floorSaved, setFloorSaved] = useState(true);
 
   async function run(fn: () => Promise<void>) {
     setBusy(true);
@@ -86,20 +88,26 @@ export function SellFlow() {
         depositCents: modes.includes("rent") ? price!.depositCents : undefined,
         status: "active",
       });
-      await postJson(
-        `/api/policies/${listing.id}`,
-        {
-          listPriceCents: listCents,
-          floorCents,
-          autoAcceptCents: autoAcceptFor(listCents, floorCents),
-          mode: "full_auto",
-          strategy,
-          maxRounds: 4,
-          tone: "friendly",
-          extrasAllowed: [],
-        },
-        "PUT",
-      );
+      setListingId(listing.id);
+      try {
+        await postJson(
+          `/api/policies/${listing.id}`,
+          {
+            listPriceCents: listCents,
+            floorCents,
+            autoAcceptCents: autoAcceptFor(listCents, floorCents),
+            mode: "full_auto",
+            strategy,
+            maxRounds: 4,
+            tone: "friendly",
+            extrasAllowed: [],
+          },
+          "PUT",
+        );
+        setFloorSaved(true);
+      } catch {
+        setFloorSaved(false);
+      }
       setStep("done");
     });
 
@@ -303,6 +311,14 @@ export function SellFlow() {
         <Card className="flex flex-col items-center gap-2 py-8 text-center">
           <Chip tone="success">Live</Chip>
           <p className="font-medium">{draft?.title} is listed. Hallway will handle offers for you.</p>
+          {!floorSaved && (
+            <p className="text-sm text-muted">Your floor will be locked in as soon as the negotiation service is live.</p>
+          )}
+          {listingId && (
+            <a href="/home" className="mt-2 text-sm font-medium text-accent">
+              Back to home
+            </a>
+          )}
         </Card>
       )}
 
