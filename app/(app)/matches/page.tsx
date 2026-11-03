@@ -2,8 +2,9 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Card, Chip, EmptyState, PriceTag } from "@/components/ui";
-import { findMatches, getListingStore, ownerName, parseWant } from "@/lib/agents";
+import { adviseForMatches, findMatches, getListingStore, ownerName, parseWant, recordWant } from "@/lib/agents";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth/session";
+import { AdviceCard } from "./AdviceCard";
 import { MatchActions } from "./MatchActions";
 
 export const metadata = { title: "Matches · Hallway" };
@@ -18,6 +19,8 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
 
   const want = await parseWant(q, user.id);
   const matches = await findMatches(want);
+  await recordWant(want, matches.length > 0);
+  const advice = await adviseForMatches(want, matches);
   const store = getListingStore();
   const rows = await Promise.all(matches.map(async (m) => ({ match: m, listing: (await store.get(m.listingId))! })));
   const { parsed } = want;
@@ -70,6 +73,7 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
           </Card>
         ))
       )}
+      {advice && <AdviceCard advice={advice} />}
     </main>
   );
 }

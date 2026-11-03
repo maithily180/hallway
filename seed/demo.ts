@@ -1,4 +1,5 @@
 import type { Listing } from "@/lib/contracts";
+import type { StoredWant } from "@/lib/agents/wants";
 
 /** Demo University: one community, the demo users and generic listings (no brands). */
 export const DEMO_COMMUNITY = { id: "demo-u", name: "Demo University", emailDomain: "demo.edu" };
@@ -166,4 +167,36 @@ export const DEMO_LISTINGS: Listing[] = SEEDS.map((s) => ({
   status: "active",
   createdAt: "2026-10-31T12:00:00.000Z",
   ...s,
+}));
+
+type WantSeed = [userId: string, text: string, item: string, intent: "buy" | "rent" | "borrow", status: "open" | "matched", budgetCents?: number];
+
+const WANT_SEEDS: WantSeed[] = [
+  ["u01", "need a drill to put up shelves", "drill", "borrow", "matched"],
+  ["u02", "borrow a drill this weekend", "drill", "borrow", "matched"],
+  ["u03", "drill for an hour", "drill", "rent", "matched", 1000],
+  ["u04", "anyone have a power drill", "drill", "borrow", "matched"],
+  ["u05", "rent a drill saturday", "drill", "rent", "matched", 800],
+  ["u06", "drill and bits please", "drill", "borrow", "matched"],
+  ["priya", "cordless drill for a day", "drill", "rent", "matched", 1000],
+  ["u07", "projector for a club screening", "projector", "rent", "matched", 3000],
+  ["u08", "projector friday night", "projector", "rent", "matched"],
+  ["u09", "kayak for the lake this weekend", "kayak", "rent", "open", 3000],
+  ["u10", "borrow a kayak", "kayak", "borrow", "open"],
+  ["u11", "bike for the semester", "bike", "rent", "matched", 5000],
+  ["u12", "graphing calculator for the exam", "calculator", "borrow", "open"],
+  ["sam", "need a calculator for finals", "calculator", "rent", "open", 500],
+  ["u13", "camera for a photo project", "camera", "rent", "open", 2500],
+  ["u14", "air mattress for guests", "mattress", "borrow", "open"],
+];
+
+/** Demo demand: who asked for what on the Wanted board. */
+export const DEMO_WANTS: StoredWant[] = WANT_SEEDS.map(([userId, text, item, intent, status, budgetCents], i) => ({
+  id: `want-${i + 1}`,
+  userId,
+  text,
+  parsed: { item, intent, needs: [], ...(budgetCents !== undefined && { budgetCents }) },
+  status,
+  communityId: DEMO_COMMUNITY.id,
+  createdAt: new Date(Date.UTC(2026, 9, 25 + (i % 6), 12)).toISOString(),
 }));

@@ -63,10 +63,10 @@ export function hasFeature(text: string, feature: string): boolean {
 
 /** 1 when the item word appears in the category or title, partial for description-only hits. */
 export function relevance(item: string, l: Listing): number {
-  const w = item.toLowerCase().replace(/s$/, "");
+  const w = item.toLowerCase().replace(/(?<!s)s$/, "");
   if (!w) return 0;
-  if (l.category === w || words(l.title).some((t) => t.replace(/s$/, "") === w)) return 1;
-  return words(l.description).some((t) => t.replace(/s$/, "") === w) ? 0.4 : 0;
+  if (l.category === w || words(l.title).some((t) => t.replace(/(?<!s)s$/, "") === w)) return 1;
+  return words(l.description).some((t) => t.replace(/(?<!s)s$/, "") === w) ? 0.4 : 0;
 }
 
 function priceFor(l: Listing, mode: ListingMode): number {
