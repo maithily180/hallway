@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { ConditionGrade, ListingDraft, ListingMode, PriceSuggestion } from "@/lib/contracts";
-import { Button, Card, Chip, formatCents, PriceTag } from "@/components/ui";
+import { Button, Card, Chip, formatCents, Icon, PriceTag } from "@/components/ui";
 import { cx } from "@/components/ui/format";
 import { applyAnswers, autoAcceptFor, dollarsToCents, floorError, listPriceFor, type Strategy } from "./form";
 import { toDataUrl } from "./photos";
@@ -148,8 +148,9 @@ export function SellFlow() {
               </button>
             ))}
             {photos.length < MAX_PHOTOS && (
-              <label className="flex aspect-square cursor-pointer items-center justify-center rounded-xl border border-dashed border-border text-sm text-muted hover:border-accent">
-                + Photo
+              <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-border bg-surface-2/60 text-sm text-muted transition-colors hover:border-accent hover:text-accent">
+                <Icon name="camera" className="size-6" />
+                {photos.length === 0 ? "Add photos" : "Add more"}
                 <input
                   type="file"
                   accept="image/*"
