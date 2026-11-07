@@ -58,7 +58,9 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
               <div>
                 <p className="font-medium">
                   {i === 0 && <Chip tone="success" className="mr-2">Best match</Chip>}
-                  {listing.title}
+                  <Link href={`/matches/${listing.id}`} className="hover:underline">
+                    {listing.title}
+                  </Link>
                 </p>
                 <p className="text-sm text-muted">from {ownerName(listing.ownerId)}</p>
               </div>
