@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { Button, Card } from "@/components/ui";
 
-const field = "w-full rounded-xl border border-border bg-surface px-3 py-2 outline-none focus:border-accent";
+const field = "h-11 w-full rounded-xl border border-border bg-surface px-3 outline-none transition focus:border-accent focus:ring-4 focus:ring-accent/15";
 
 export function LoginForm({ next, domain }: { next: string; domain: string }) {
   const [error, setError] = useState<string | null>(null);
@@ -28,9 +28,9 @@ export function LoginForm({ next, domain }: { next: string; domain: string }) {
   }
 
   return (
-    <Card>
-      <form onSubmit={submit} className="flex flex-col gap-3">
-        <label className="flex flex-col gap-1 text-sm">
+    <Card className="p-6 shadow-md">
+      <form onSubmit={submit} className="flex flex-col gap-4">
+        <label className="flex flex-col gap-1.5 text-sm font-medium">
           Campus email
           <input
             name="email"
@@ -41,12 +41,12 @@ export function LoginForm({ next, domain }: { next: string; domain: string }) {
             className={field}
           />
         </label>
-        <label className="flex flex-col gap-1 text-sm">
+        <label className="flex flex-col gap-1.5 text-sm font-medium">
           Password
           <input name="password" type="password" required autoComplete="current-password" className={field} />
         </label>
         {error && <p className="text-sm text-danger">{error}</p>}
-        <Button type="submit" disabled={busy}>
+        <Button type="submit" size="lg" disabled={busy} className="mt-1">
           {busy ? "Logging in…" : "Log in"}
         </Button>
       </form>

@@ -1,7 +1,7 @@
 /** Skeleton shown while a screen's agents work (parsing a want, ranking matches). */
 export default function Loading() {
   return (
-    <main className="mx-auto flex max-w-xl flex-col gap-4 px-4 py-10" aria-busy="true" aria-label="Loading">
+    <main className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-8" aria-busy="true" aria-label="Loading">
       <div className="h-7 w-2/3 animate-pulse rounded-lg bg-border/70" />
       <div className="flex gap-2">
         {[16, 20, 14].map((w) => (

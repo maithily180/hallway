@@ -30,7 +30,7 @@ export function MatchActions({ listingId, mode, available }: { listingId: string
 
   return (
     <div className="flex flex-col gap-1">
-      <Button onClick={start} disabled={busy || !available}>
+      <Button onClick={start} disabled={busy || !available} className="w-full">
         {available ? (busy ? "Starting…" : LABEL[mode]) : "Not available"}
       </Button>
       {error && <p className="text-sm text-danger">{error}</p>}

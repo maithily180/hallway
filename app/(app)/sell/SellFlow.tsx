@@ -11,6 +11,12 @@ type Step = "photos" | "draft" | "price" | "floor" | "done";
 
 const CONDITIONS: ConditionGrade[] = ["new", "like_new", "good", "fair", "poor"];
 const MAX_PHOTOS = 5;
+const STEPS: { id: Step; label: string }[] = [
+  { id: "photos", label: "Photos" },
+  { id: "draft", label: "Details" },
+  { id: "price", label: "Price" },
+  { id: "floor", label: "Floor" },
+];
 
 async function postJson<T>(url: string, body: unknown, method = "POST"): Promise<T> {
   const res = await fetch(url, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -19,7 +25,7 @@ async function postJson<T>(url: string, body: unknown, method = "POST"): Promise
   return res.json() as Promise<T>;
 }
 
-const field = "w-full rounded-xl border border-border bg-surface px-3 py-2 outline-none focus:border-accent";
+const field = "w-full rounded-xl border border-border bg-surface px-3 py-2.5 outline-none transition focus:border-accent focus:ring-4 focus:ring-accent/15";
 
 export function SellFlow() {
   const [step, setStep] = useState<Step>("photos");
@@ -111,8 +117,20 @@ export function SellFlow() {
       setStep("done");
     });
 
+  const stepIndex = STEPS.findIndex((s) => s.id === step);
+
   return (
     <div className="flex flex-col gap-4">
+      {step !== "done" && (
+        <ol className="grid grid-cols-4 gap-2" aria-label="Progress">
+          {STEPS.map((s, i) => (
+            <li key={s.id} className="flex flex-col gap-1.5" aria-current={i === stepIndex ? "step" : undefined}>
+              <span className={cx("h-1 rounded-full", i <= stepIndex ? "bg-accent" : "bg-border")} />
+              <span className={cx("text-xs", i === stepIndex ? "font-medium text-foreground" : "text-muted")}>{s.label}</span>
+            </li>
+          ))}
+        </ol>
+      )}
       {step === "photos" && (
         <Card className="flex flex-col gap-4">
           <p className="text-sm text-muted">Add up to {MAX_PHOTOS} photos and a sentence. Hallway drafts the listing.</p>
