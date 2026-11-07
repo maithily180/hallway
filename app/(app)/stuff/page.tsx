@@ -22,20 +22,17 @@ export default async function StuffPage() {
   const asks = wantsForOwner(listings, wants, user.id);
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-3xl flex-col gap-6 px-4 py-10">
+    <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6">
       <div className="flex items-center justify-between">
-        <Link href="/home" className="text-sm text-muted">
-          ← Home
-        </Link>
+        <h1 className="text-2xl font-semibold">My Stuff</h1>
         <Link href="/sell" className="text-sm font-medium text-accent">
           + List something
         </Link>
       </div>
-      <h1 className="text-2xl font-semibold">My Stuff</h1>
 
       {tips.map((t) => (
         <Card key={t.listingId} className="flex items-center gap-3 bg-accent/5 text-sm">
-          <Chip tone="accent">Demand scout</Chip>
+          <Chip tone="accent" className="shrink-0 whitespace-nowrap">Demand scout</Chip>
           <span>{t.text}</span>
         </Card>
       ))}
