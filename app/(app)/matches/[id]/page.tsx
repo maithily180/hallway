@@ -40,7 +40,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           ))}
         </div>
       ) : (
-        <div className="flex aspect-[4/3] items-center justify-center rounded-2xl border border-border bg-surface text-sm text-muted">
+        <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed border-border text-sm text-muted">
           No photos yet
         </div>
       )}
