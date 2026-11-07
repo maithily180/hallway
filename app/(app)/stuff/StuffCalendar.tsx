@@ -56,7 +56,9 @@ export function StuffCalendar({ ownerId, items }: { ownerId: string; items: Item
           Earned <span className="font-semibold text-foreground tabular-nums">{formatCents(earned)}</span>
         </span>
       </div>
-      <div ref={host} className="overflow-hidden rounded-2xl border border-border bg-surface" />
+      <div ref={host} className="min-h-[220px] overflow-hidden rounded-2xl border border-border bg-surface">
+        {status === "loading" && <div className="h-[220px] animate-pulse bg-border/30" />}
+      </div>
       {status === "no-deals" && (
         <p className="text-xs text-muted">Rentals show here once the deals service is live.</p>
       )}
