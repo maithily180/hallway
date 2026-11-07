@@ -58,7 +58,9 @@ export default async function StuffPage() {
           {mine.map((l) => (
             <Card key={l.id} className="flex flex-col gap-2">
               <div className="flex items-start justify-between gap-2">
-                <p className="font-medium">{l.title}</p>
+                <Link href={`/matches/${l.id}`} className="font-medium hover:underline">
+                  {l.title}
+                </Link>
                 <Chip tone={l.status === "active" ? "success" : "neutral"}>{l.status}</Chip>
               </div>
               <div className="flex flex-wrap gap-2 text-sm">
