@@ -19,7 +19,7 @@ async function getLlm(): Promise<LlmApi> {
 async function getStore(): Promise<NegotiationStore> {
   // No database configured: in-memory store, reading listings from the app's listing store and
   // seeded with the hero projector's policy.
-  if (!process.env.DATABASE_URL) return createMemoryStore({ seedHero: true, lookup: storeListingLookup });
+  if (!process.env.DATABASE_URL) return createMemoryStore({ seedHero: true, lookup: storeListingLookup, defaultPolicies: true });
   return (await import('./prisma-store')).prismaStore;
 }
 

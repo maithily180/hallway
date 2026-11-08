@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { NegoMessage, Negotiation, Policy } from '@/lib/contracts';
+import { defaultPolicy } from './default-policy';
 import type { ListingLookup } from './listing-lookup';
 import type { ListingInfo, NegotiationStore } from './store';
 
@@ -14,7 +15,7 @@ const HERO_INFO: ListingInfo = {
 
 /** In-memory store for tests and no-database mock mode, seeded with the hero projector. */
 export function createMemoryStore(
-  opts: { seedHero?: boolean; lookup?: ListingLookup } = { seedHero: true },
+  opts: { seedHero?: boolean; lookup?: ListingLookup; defaultPolicies?: boolean } = { seedHero: true },
 ): NegotiationStore {
   const policies = new Map<string, Policy>();
   const negotiations = new Map<string, Negotiation>();
@@ -56,7 +57,13 @@ export function createMemoryStore(
       return out;
     },
     async getPolicy(listingId) {
-      return policies.get(listingId) ?? null;
+      const existing = policies.get(listingId);
+      if (existing || !opts.defaultPolicies) return existing ?? null;
+      // Mock mode: a listing nobody has set a policy for starts with the default one, kept from then on.
+      const info = await getListingInfo(listingId);
+      const created = info ? defaultPolicy(listingId, info) : null;
+      if (created) policies.set(listingId, created);
+      return created;
     },
     async upsertPolicy(policy) {
       policies.set(policy.listingId, policy);

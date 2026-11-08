@@ -45,10 +45,14 @@ export function DealView({ initial, viewerId }: { initial: Deal; viewerId: strin
   const [before, setBefore] = useState<string[]>([]);
   const [after, setAfter] = useState<string[]>([]);
   const [deduction, setDeduction] = useState<string>();
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const isBuyer = viewerId === deal.buyerId;
   const isSeller = viewerId === deal.sellerId;
   const total = deal.amountCents + deal.depositCents;
+  const loan = deal.type === 'borrow';
+  // The owner can claim a missing item a day after the end date.
+  const overdue = deal.end ? nowMs > Date.parse(deal.end) + 24 * 3_600_000 : false;
 
   const refresh = useCallback(async () => {
     const res = await fetch(`/api/deals/${deal.id}`);
@@ -62,7 +66,10 @@ export function DealView({ initial, viewerId }: { initial: Deal; viewerId: strin
 
   // Webhooks move deals on the server; poll so the timeline follows along.
   useEffect(() => {
-    const t = setInterval(refresh, 4000);
+    const t = setInterval(() => {
+      setNowMs(Date.now());
+      void refresh();
+    }, 4000);
     return () => clearInterval(t);
   }, [refresh]);
 
@@ -107,20 +114,27 @@ export function DealView({ initial, viewerId }: { initial: Deal; viewerId: strin
       <section className="space-y-5">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <Chip tone="outline">{deal.type === 'sale' ? 'Purchase' : 'Rental'}</Chip>
+            <Chip tone="outline">{deal.type === 'sale' ? 'Purchase' : loan ? 'Free loan' : 'Rental'}</Chip>
             <Chip tone={deal.state === 'SETTLED' ? 'success' : ['VOIDED', 'REFUNDED'].includes(deal.state) ? 'neutral' : 'accent'}>
               {HEADLINE[deal.state]}
             </Chip>
           </div>
-          <h1 className="text-4xl font-semibold tracking-tight">{usd(deal.amountCents)}</h1>
-          {deal.depositCents > 0 && (
+          <h1 className="text-4xl font-semibold tracking-tight">{loan ? 'Free' : usd(deal.amountCents)}</h1>
+          {loan ? (
             <p className="text-muted">
-              + {usd(deal.depositCents)} deposit, held together as <strong className="text-foreground">{usd(total)}</strong> on one
-              PayPal authorization.
+              A <strong className="text-foreground">{usd(deal.depositCents)}</strong> deposit is held on a PayPal authorization while
+              it is out, and released when it comes back in good order.
             </p>
+          ) : (
+            deal.depositCents > 0 && (
+              <p className="text-muted">
+                + {usd(deal.depositCents)} deposit, held together as <strong className="text-foreground">{usd(total)}</strong> on
+                one PayPal authorization.
+              </p>
+            )
           )}
           <p className="text-sm text-muted">
-            You are the <strong className="text-foreground">{isBuyer ? (deal.type === 'sale' ? 'buyer' : 'renter') : isSeller ? 'owner' : 'guest'}</strong>.
+            You are the <strong className="text-foreground">{isBuyer ? (deal.type === 'sale' ? 'buyer' : loan ? 'borrower' : 'renter') : isSeller ? 'owner' : 'guest'}</strong>.
           </p>
         </div>
 
@@ -181,8 +195,23 @@ export function DealView({ initial, viewerId }: { initial: Deal; viewerId: strin
             </Button>
           </Card>
         )}
-        {isSeller && deal.state === 'OUT' && (
-          <Card className="text-sm text-muted">Out with the renter. You&rsquo;ll review the return when they bring it back.</Card>
+        {isSeller && deal.state === 'OUT' && !overdue && (
+          <Card className="text-sm text-muted">
+            Out with the {loan ? 'borrower' : 'renter'}
+            {deal.end && <> until {new Date(deal.end).toLocaleDateString()}</>}. You&rsquo;ll review the return when it comes back.
+          </Card>
+        )}
+        {isSeller && deal.state === 'OUT' && overdue && (
+          <Card className="space-y-3">
+            <p className="text-sm font-medium">It is overdue</p>
+            <p className="text-sm text-muted">
+              It should have been back by {deal.end && new Date(deal.end).toLocaleDateString()}. If it is not coming back, you can
+              claim the whole {usd(total)} hold. Hallway captures it and pays it out to you.
+            </p>
+            <Button variant="secondary" disabled={busy} onClick={() => act('claim-no-return')}>
+              Claim the {usd(total)} hold
+            </Button>
+          </Card>
         )}
 
         {inspection?.result && (
@@ -198,8 +227,10 @@ export function DealView({ initial, viewerId }: { initial: Deal; viewerId: strin
           <Card className="space-y-3">
             <p className="text-sm font-medium">Settle the rental</p>
             <p className="text-sm text-muted">
-              Hallway captures the rent ({usd(deal.amountCents)}) and PayPal releases the rest of the hold. If you deduct for
-              damage, the renter has to agree to the exact amount first.
+              {loan
+                ? 'Hallway releases the whole deposit hold. '
+                : `Hallway captures the rent (${usd(deal.amountCents)}) and PayPal releases the rest of the hold. `}
+              If you deduct for damage, the {loan ? 'borrower' : 'renter'} has to agree to the exact amount first.
             </p>
             <label className="block text-sm">
               Deduction in dollars (0 for a clean return, max {usd(deal.depositCents)})
@@ -220,7 +251,7 @@ export function DealView({ initial, viewerId }: { initial: Deal; viewerId: strin
               disabled={busy}
               onClick={() => act('settle', { deductionCents: Math.round(Number(deductionValue) * 100), ownerOk: true })}
             >
-              {Number(deductionValue) > 0 ? 'Propose this deduction' : 'Settle with no deduction'}
+              {Number(deductionValue) > 0 ? 'Propose this deduction' : loan ? 'Release the deposit' : 'Settle with no deduction'}
             </Button>
           </Card>
         )}

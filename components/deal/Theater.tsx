@@ -82,6 +82,29 @@ export function Theater({ initial, viewerId }: { initial: TheaterData; viewerId:
     await post('messages', { text: body });
   }
 
+  // A free loan has nothing to haggle over: it starts agreed at $0 and holds only a deposit.
+  if (negotiation.agreedCents === 0 && negotiation.status === 'agreed') {
+    return (
+      <div className="mx-auto max-w-xl px-4 py-10">
+        <Card className="space-y-4 text-center">
+          <Chip tone="success" className="mx-auto">
+            Free loan
+          </Chip>
+          <h1 className="text-2xl font-semibold tracking-tight">{isBuyer ? 'You can borrow this' : 'A loan was requested'}</h1>
+          <p className="text-sm text-muted">
+            No haggling needed. {isBuyer ? 'A refundable deposit is held on PayPal while you have it' : 'A deposit is held on PayPal while it is out'}
+            , and released when it comes back in good order.
+          </p>
+          {negotiation.dealId && (
+            <Link className={buttonClass('primary', 'lg')} href={`/deals/${negotiation.dealId}`}>
+              {isBuyer ? 'Continue to the deposit hold' : 'Open the deal'}
+            </Link>
+          )}
+        </Card>
+      </div>
+    );
+  }
+
   const points = buildLadder(data.listPriceCents, messages, negotiation);
 
   return (

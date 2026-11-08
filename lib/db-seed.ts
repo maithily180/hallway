@@ -3,34 +3,13 @@
  * Idempotent: safe to run on every deploy. Reads the same cast and listings as the in-memory
  * demo (`seed/demo.ts`), so mock mode and hosted mode show the same marketplace.
  */
-import type { Policy } from '@/lib/contracts';
 import { db } from '@/lib/db';
+import { defaultPolicy } from '@/lib/negotiation/default-policy';
 import { DEMO_COMMUNITY, DEMO_LISTINGS, DEMO_USERS } from '@/seed/demo';
 
 /** Read at call time so tests and deploys can set the sandbox emails before seeding. */
 const payoutEmail = (userId: string): string | undefined =>
   (userId === 'maya' ? process.env.SANDBOX_MAYA_EMAIL : userId === 'leo' ? process.env.SANDBOX_LEO_EMAIL : undefined) || undefined;
-
-/** The hero projector's script: list $40/day, floor $25, auto-accept $34, three rounds. */
-const HERO = { id: 'hero-projector', floorCents: 2500, autoAcceptCents: 3400 };
-
-function defaultPolicy(listing: (typeof DEMO_LISTINGS)[number]): Policy | null {
-  // One policy per listing: price it by how the item is mainly offered (rent first).
-  const list = listing.modes.includes('rent') ? listing.rentPerDayCents : listing.salePriceCents;
-  if (!list) return null;
-  const isHero = listing.id === HERO.id;
-  return {
-    listingId: listing.id,
-    listPriceCents: list,
-    floorCents: isHero ? HERO.floorCents : Math.round(list * 0.7),
-    autoAcceptCents: isHero ? HERO.autoAcceptCents : Math.round(list * 0.9),
-    mode: 'full_auto',
-    strategy: 'best_price',
-    maxRounds: 3,
-    tone: 'friendly',
-    extrasAllowed: isHero ? ['include HDMI cable'] : [],
-  };
-}
 
 export async function seedDemo(): Promise<{ users: number; listings: number; policies: number }> {
   await db.community.upsert({
@@ -52,7 +31,13 @@ export async function seedDemo(): Promise<{ users: number; listings: number; pol
       update: {},
       create: { ...rest, createdAt: new Date(createdAt) },
     });
-    const p = defaultPolicy(l);
+    const p = defaultPolicy(l.id, {
+      ownerId: l.ownerId,
+      modes: l.modes,
+      depositCents: l.depositCents ?? 0,
+      salePriceCents: l.salePriceCents,
+      rentPerDayCents: l.rentPerDayCents,
+    });
     if (p) {
       // Never overwrite a policy an owner already chose.
       await db.policy.upsert({

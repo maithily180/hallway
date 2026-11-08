@@ -39,6 +39,8 @@ services:
         generateValue: true
       - key: AUTH_SECRET
         generateValue: true
+      - key: CRON_SECRET
+        generateValue: true # protects POST /api/jobs/reauthorize
       - key: DEMO_PASSWORD
         sync: false # shared password for the demo and judge logins
       - key: APP_URL
@@ -53,3 +55,21 @@ services:
         value: "0"
       - key: MOCK_LLM
         value: "0"
+
+  # Optional: refreshes rental holds on day 3 so rentals longer than 3 days can still be captured.
+  # Render cron jobs have no free plan, so this is off by default. Any scheduler can do the same job:
+  #   curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/jobs/reauthorize"
+  # (a 1-day rental, as in the demo, never needs it). To enable, uncomment and set APP_URL.
+  #
+  # - type: cron
+  #   name: hallway-reauthorize
+  #   runtime: node
+  #   plan: starter
+  #   schedule: "0 */6 * * *"
+  #   buildCommand: echo "nothing to build"
+  #   startCommand: curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/jobs/reauthorize"
+  #   envVars:
+  #     - key: CRON_SECRET
+  #       fromService: { type: web, name: hallway, envVarKey: CRON_SECRET }
+  #     - key: APP_URL
+  #       sync: false
