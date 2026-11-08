@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
+import { getSessionUser } from '@/lib/auth/session';
 import { NegotiationError } from './service';
 
-/**
- * Current user for API routes. Real login is Chandrani's (auth); until it lands we read
- * the `x-user-id` header so routes can be exercised. See NOTES/requests.md.
- */
-export function currentUserId(req: Request): string | undefined {
-  return req.headers.get('x-user-id') ?? undefined;
+/** The signed-in user's id (the email's local part, e.g. "maya"), from the session cookie. */
+export async function requireUserId(req: Request): Promise<string> {
+  const user = await getSessionUser(req);
+  if (!user) throw new NegotiationError('sign in first', 401);
+  return user.id;
 }
 
 export function errorResponse(err: unknown) {

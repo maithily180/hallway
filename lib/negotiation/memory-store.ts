@@ -1,11 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import type { NegoMessage, Negotiation, Policy } from '@/lib/contracts';
+import type { ListingLookup } from './listing-lookup';
 import type { NegotiationStore } from './store';
 
-export const HERO_LISTING_ID = 'listing-projector';
+export const HERO_LISTING_ID = 'hero-projector';
 
 /** In-memory store for tests and no-database mock mode, seeded with the hero projector. */
-export function createMemoryStore(opts: { seedHero?: boolean } = { seedHero: true }): NegotiationStore {
+export function createMemoryStore(
+  opts: { seedHero?: boolean; lookup?: ListingLookup } = { seedHero: true },
+): NegotiationStore {
   const policies = new Map<string, Policy>();
   const negotiations = new Map<string, Negotiation>();
   const messages = new Map<string, NegoMessage[]>();
@@ -28,6 +31,8 @@ export function createMemoryStore(opts: { seedHero?: boolean } = { seedHero: tru
 
   return {
     async getListingOwner(listingId) {
+      const ref = await opts.lookup?.(listingId);
+      if (ref) return { ownerId: ref.ownerId };
       const ownerId = owners.get(listingId);
       return ownerId ? { ownerId } : null;
     },
@@ -36,7 +41,6 @@ export function createMemoryStore(opts: { seedHero?: boolean } = { seedHero: tru
     },
     async upsertPolicy(policy) {
       policies.set(policy.listingId, policy);
-      if (!owners.has(policy.listingId)) owners.set(policy.listingId, 'unknown');
       return policy;
     },
     async createNegotiation(input) {

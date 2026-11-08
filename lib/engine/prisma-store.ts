@@ -17,6 +17,7 @@ const toInspection = (row: Prisma.InspectionGetPayload<object>): InspectionRecor
   beforePhotos: row.beforePhotos,
   afterPhotos: row.afterPhotos,
   result: (row.result as InspectionResult | null) ?? undefined,
+  deductionCents: row.deductionCents ?? undefined,
   ownerDecision: (row.ownerDecision as InspectionRecord['ownerDecision']) ?? undefined,
   renterDecision: (row.renterDecision as InspectionRecord['renterDecision']) ?? undefined,
 });
@@ -77,6 +78,7 @@ export const prismaDealStore: DealStore = {
       beforePhotos: record.beforePhotos,
       afterPhotos: record.afterPhotos,
       result: (record.result ?? undefined) as Prisma.InputJsonValue | undefined,
+      deductionCents: record.deductionCents ?? null,
       ownerDecision: record.ownerDecision ?? null,
       renterDecision: record.renterDecision ?? null,
     };

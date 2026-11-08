@@ -66,7 +66,11 @@ describe('getTheaterView', () => {
     const owner = await service.getTheaterView(id, 'maya');
     expect(owner.floorCents).toBe(2500);
 
-    for (const viewer of ['leo', 'someone-else', undefined]) {
+    // a stranger cannot view the negotiation at all
+    await expect(service.getTheaterView(id, 'someone-else')).rejects.toMatchObject({ status: 403 });
+    await expect(service.getNegotiation(id, 'someone-else')).rejects.toMatchObject({ status: 403 });
+
+    for (const viewer of ['leo', undefined]) {
       const view = await service.getTheaterView(id, viewer);
       expect(view.floorCents).toBeUndefined();
       expect(JSON.stringify(view)).not.toMatch(/floorCents|autoAccept|"2500"|3400/);

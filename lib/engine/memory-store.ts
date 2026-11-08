@@ -1,16 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import type { Deal } from '@/lib/contracts';
+import type { ListingLookup } from '@/lib/negotiation/listing-lookup';
 import type { DealStore, InspectionRecord, ListingTerms } from './store';
 
 /** In-memory deal store for tests and no-database mock mode. */
 export function createMemoryDealStore(
   listings: Record<string, ListingTerms> = {
-    'listing-projector': {
+    'hero-projector': {
       ownerId: 'maya',
       depositCents: 15000,
-      sellerPayoutEmail: process.env.SANDBOX_MAYA_EMAIL ?? 'maya@example.test',
+      sellerPayoutEmail: process.env.SANDBOX_MAYA_EMAIL || 'maya@example.test',
     },
   },
+  lookup?: ListingLookup,
 ): DealStore {
   const deals = new Map<string, Deal>();
   const events = new Set<string>();
@@ -18,7 +20,7 @@ export function createMemoryDealStore(
 
   return {
     async getListingTerms(listingId) {
-      return listings[listingId] ?? null;
+      return (await lookup?.(listingId)) ?? listings[listingId] ?? null;
     },
     async createDeal(deal) {
       const created = { ...deal, id: randomUUID() };

@@ -8,7 +8,7 @@ export class DealError extends Error {
   override name = 'DealError';
   constructor(
     message: string,
-    readonly status: 400 | 403 | 404 | 409,
+    readonly status: 400 | 401 | 403 | 404 | 409,
   ) {
     super(message);
   }
@@ -71,6 +71,10 @@ export function createDealService(deps: DealServiceDeps) {
     return deal;
   }
 
+  function assertParticipant(deal: Deal, userId: string) {
+    if (userId !== deal.buyerId && userId !== deal.sellerId) throw new DealError('not your deal', 403);
+  }
+
   function assertBuyer(deal: Deal, userId?: string) {
     if (userId && userId !== deal.buyerId) throw new DealError('only the buyer can do this', 403);
   }
@@ -105,7 +109,12 @@ export function createDealService(deps: DealServiceDeps) {
       });
     },
 
-    getDeal: mustGet,
+    /** Only the buyer and the seller may read a deal (when a viewer is given). */
+    async getDeal(id: string, viewerId?: string): Promise<Deal> {
+      const deal = await mustGet(id);
+      if (viewerId !== undefined) assertParticipant(deal, viewerId);
+      return deal;
+    },
     listDeals: (filter: Parameters<DealStore['listDeals']>[0]) => store.listDeals(filter),
 
     /** Create the PayPal order for the buyer to approve. Sale captures; rent authorizes rent + deposit. */
@@ -157,9 +166,10 @@ export function createDealService(deps: DealServiceDeps) {
     },
 
     /** Cancel: void a hold, refund a paid sale, or drop an unpaid deal. Nothing moves after pickup. */
-    cancel(dealId: string): Promise<Deal> {
+    cancel(dealId: string, userId?: string): Promise<Deal> {
       return withLock(dealId, async () => {
         let deal = await mustGet(dealId);
+        if (userId !== undefined) assertParticipant(deal, userId);
         if (deal.state === 'HELD' && deal.paypal.authorizationId) {
           await paypal.voidAuthorization(deal.paypal.authorizationId, requestId(deal.id, 'void'));
           deal = move(deal, 'VOIDED', deal.paypal.authorizationId);
@@ -233,11 +243,93 @@ export function createDealService(deps: DealServiceDeps) {
      * Clean return: rent only. Damage: rent + deduction, only if owner and renter both agree;
      * a contested deduction goes to CLAIMED for human review and captures nothing yet.
      */
-    settle(
+    async settle(
       dealId: string,
       input: { deductionCents: number; ownerOk: boolean; renterOk: boolean },
+      userId?: string,
     ): Promise<Deal> {
+      // Internal callers (tests, the engine) pass no user and state both consents themselves.
+      if (userId === undefined) return settleResolved(dealId, input);
+
+      // From the API, each side may only speak for themselves: the owner proposes and confirms a
+      // deduction, the renter accepts or disputes the owner's recorded figure. The other side's
+      // consent is read from storage, never from the request body.
+      const resolved = await withLock(dealId, async () => {
+        const deal = await mustGet(dealId);
+        const record = (await store.getInspection(deal.id)) ?? { dealId: deal.id, beforePhotos: [], afterPhotos: [] };
+
+        if (userId === deal.sellerId) {
+          const { deductionCents } = input;
+          if (!Number.isInteger(deductionCents) || deductionCents < 0 || deductionCents > deal.depositCents) {
+            throw new DealError('deduction must be between 0 and the deposit', 400);
+          }
+          const changed = record.deductionCents !== deductionCents;
+          await store.saveInspection({
+            ...record,
+            deductionCents,
+            ownerDecision: input.ownerOk ? 'ok' : 'dispute',
+            renterDecision: changed ? undefined : record.renterDecision,
+          });
+          return {
+            deductionCents,
+            ownerOk: input.ownerOk,
+            renterOk: deductionCents === 0 || (!changed && record.renterDecision === 'ok'),
+          };
+        }
+
+        if (userId === deal.buyerId) {
+          if (!record.deductionCents) throw new DealError('there is no deduction to respond to', 409);
+          await store.saveInspection({ ...record, renterDecision: input.renterOk ? 'ok' : 'dispute' });
+          return {
+            deductionCents: record.deductionCents,
+            ownerOk: record.ownerDecision === 'ok',
+            renterOk: input.renterOk,
+          };
+        }
+        throw new DealError('not your deal', 403);
+      });
+      return settleResolved(dealId, resolved);
+    },
+
+    /** The photos and findings for a deal, for the owner and the renter to review. */
+    async getInspection(dealId: string, userId?: string) {
+      const deal = await mustGet(dealId);
+      if (userId !== undefined) assertParticipant(deal, userId);
+      const record = await store.getInspection(deal.id);
+      return record ? { ...record, depositCents: deal.depositCents } : null;
+    },
+
+    /**
+     * Authorizations are only reliably capturable in the first 3 days. Long rentals refresh
+     * the hold from day 3 on (allowed until day 29).
+     */
+    reauthorize(dealId: string): Promise<Deal> {
       return withLock(dealId, async () => {
+        const deal = await mustGet(dealId);
+        const held = deal.timeline.find((t) => t.state === 'HELD');
+        if ((deal.state !== 'HELD' && deal.state !== 'OUT') || !deal.paypal.authorizationId || !held) {
+          throw new DealError('no active authorization to refresh', 409);
+        }
+        const days = Math.floor((now().getTime() - Date.parse(held.at)) / DAY_MS);
+        if (days < 3) return deal;
+        if (days > 29) throw new DealError('authorization is past its 29-day limit', 409);
+
+        const { authorizationId } = await paypal.reauthorize(
+          deal.paypal.authorizationId,
+          deal.amountCents + deal.depositCents,
+          requestId(deal.id, `reauth-day-${days}`),
+        );
+        return store.saveDeal({ ...deal, paypal: { ...deal.paypal, authorizationId } });
+      });
+    },
+  };
+
+  /** Capture or claim, given both sides' consent. Locks per deal. */
+  function settleResolved(
+    dealId: string,
+    input: { deductionCents: number; ownerOk: boolean; renterOk: boolean },
+  ): Promise<Deal> {
+    return withLock(dealId, async () => {
         const deal = await mustGet(dealId);
         if (deal.state === 'SETTLED') return deal; // repeat is a no-op
         if (deal.state !== 'RETURNED' && deal.state !== 'CLAIMED') {
@@ -271,33 +363,8 @@ export function createDealService(deps: DealServiceDeps) {
           await store.saveInspection({ ...inspection, ownerDecision: 'ok', renterDecision: 'ok' });
         }
         return payoutSeller(captured, owedCents, captureId);
-      });
-    },
-
-    /**
-     * Authorizations are only reliably capturable in the first 3 days. Long rentals refresh
-     * the hold from day 3 on (allowed until day 29).
-     */
-    reauthorize(dealId: string): Promise<Deal> {
-      return withLock(dealId, async () => {
-        const deal = await mustGet(dealId);
-        const held = deal.timeline.find((t) => t.state === 'HELD');
-        if ((deal.state !== 'HELD' && deal.state !== 'OUT') || !deal.paypal.authorizationId || !held) {
-          throw new DealError('no active authorization to refresh', 409);
-        }
-        const days = Math.floor((now().getTime() - Date.parse(held.at)) / DAY_MS);
-        if (days < 3) return deal;
-        if (days > 29) throw new DealError('authorization is past its 29-day limit', 409);
-
-        const { authorizationId } = await paypal.reauthorize(
-          deal.paypal.authorizationId,
-          deal.amountCents + deal.depositCents,
-          requestId(deal.id, `reauth-day-${days}`),
-        );
-        return store.saveDeal({ ...deal, paypal: { ...deal.paypal, authorizationId } });
-      });
-    },
-  };
+    });
+  }
 
   async function assertSellerPayable(deal: Deal) {
     if (payeeMode === 'direct') return;

@@ -9,7 +9,7 @@ export class NegotiationError extends Error {
   override name = 'NegotiationError';
   constructor(
     message: string,
-    readonly status: 400 | 403 | 404 | 409,
+    readonly status: 400 | 401 | 403 | 404 | 409,
   ) {
     super(message);
   }
@@ -34,6 +34,13 @@ export interface ServiceDeps {
 }
 
 export function createNegotiationService({ store, llm, now = () => new Date(), onAgreed }: ServiceDeps) {
+  async function assertParticipant(n: Negotiation, userId: string) {
+    const owner = await store.getListingOwner(n.listingId);
+    if (userId !== n.buyerId && userId !== owner?.ownerId) {
+      throw new NegotiationError('not your negotiation', 403);
+    }
+  }
+
   async function mustGet(id: string): Promise<Negotiation> {
     const n = await store.getNegotiation(id);
     if (!n) throw new NegotiationError('negotiation not found', 404);
@@ -44,8 +51,11 @@ export function createNegotiationService({ store, llm, now = () => new Date(), o
     async createOrUpdatePolicy(input: unknown, actingUserId?: string): Promise<Policy> {
       const policy = validatePolicy(input);
       const owner = await store.getListingOwner(policy.listingId);
-      if (owner && actingUserId && owner.ownerId !== actingUserId) {
-        throw new NegotiationError('only the listing owner can set the policy', 403);
+      if (actingUserId !== undefined) {
+        if (!owner) throw new NegotiationError('listing not found', 404);
+        if (owner.ownerId !== actingUserId) {
+          throw new NegotiationError('only the listing owner can set the policy', 403);
+        }
       }
       return store.upsertPolicy(policy);
     },
@@ -74,8 +84,11 @@ export function createNegotiationService({ store, llm, now = () => new Date(), o
       return store.createNegotiation({ listingId, buyerId, kind, rentDays });
     },
 
-    async getNegotiation(id: string) {
-      return { negotiation: await mustGet(id), messages: await store.listMessages(id) };
+    /** Only the buyer and the listing owner may read a negotiation (when a viewer is given). */
+    async getNegotiation(id: string, viewerId?: string) {
+      const negotiation = await mustGet(id);
+      if (viewerId !== undefined) await assertParticipant(negotiation, viewerId);
+      return { negotiation, messages: await store.listMessages(id) };
     },
 
     /**
@@ -84,6 +97,7 @@ export function createNegotiationService({ store, llm, now = () => new Date(), o
      */
     async getTheaterView(id: string, viewerId?: string) {
       const negotiation = await mustGet(id);
+      if (viewerId !== undefined) await assertParticipant(negotiation, viewerId);
       const [messages, policy, owner] = await Promise.all([
         store.listMessages(id),
         store.getPolicy(negotiation.listingId),
@@ -140,11 +154,15 @@ export function createNegotiationService({ store, llm, now = () => new Date(), o
     async handleBuyerMessage(
       negotiationId: string,
       text: string,
+      userId?: string,
     ): Promise<{ negotiation: Negotiation; messages: NegoMessage[] }> {
       const body = text.trim();
       if (!body || body.length > 1000) throw new NegotiationError('message must be 1-1000 characters', 400);
 
       const negotiation = await mustGet(negotiationId);
+      if (userId !== undefined && userId !== negotiation.buyerId) {
+        throw new NegotiationError('only the buyer can send offers', 403);
+      }
       if (negotiation.status !== 'open') {
         throw new NegotiationError(`negotiation is ${negotiation.status}`, 409);
       }

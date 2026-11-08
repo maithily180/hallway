@@ -1,33 +1,22 @@
-import { notFound } from 'next/navigation';
+import { cookies } from 'next/headers';
+import { notFound, redirect } from 'next/navigation';
 import { Theater } from '@/components/deal/Theater';
+import { SESSION_COOKIE, verifySession } from '@/lib/auth/session';
 import { getNegotiationService } from '@/lib/negotiation/runtime';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * Negotiation Theater: the chat on the left, the live price ladder on the right.
- * `?as=<userId>` stands in for the signed-in user until login lands (see NOTES/requests.md).
- */
-export default async function NegotiatePage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ as?: string }>;
-}) {
-  const [{ id }, { as }] = await Promise.all([params, searchParams]);
-  const service = await getNegotiationService();
-  const first = await service.getNegotiation(id).catch((err: unknown) => {
-    // Duck-typed: Next can load modules in separate graphs, so instanceof is unreliable.
-    if ((err as { status?: number }).status === 404) notFound();
+/** Negotiation Theater: the chat on the left, the live price ladder on the right. */
+export default async function NegotiatePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const user = await verifySession((await cookies()).get(SESSION_COOKIE)?.value);
+  if (!user) redirect(`/login?next=${encodeURIComponent(`/negotiate/${id}`)}`);
+
+  const data = await (await getNegotiationService()).getTheaterView(id, user.id).catch((err: unknown) => {
+    // Unknown or not yours: the same 404, so a negotiation's existence is not leaked.
+    const status = (err as { status?: number }).status;
+    if (status === 404 || status === 403) notFound();
     throw err;
   });
-  const viewerId = as ?? first.negotiation.buyerId;
-  const data = await service.getTheaterView(id, viewerId);
-
-  return (
-    <main className="min-h-screen bg-stone-50">
-      <Theater initial={data} viewerId={viewerId} />
-    </main>
-  );
+  return <Theater initial={data} viewerId={user.id} />;
 }

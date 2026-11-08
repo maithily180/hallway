@@ -11,7 +11,7 @@ let svc: DealService;
 
 const agreed = (over: Partial<Negotiation> = {}): Negotiation => ({
   id: 'n1',
-  listingId: 'listing-projector',
+  listingId: 'hero-projector',
   buyerId: 'leo',
   kind: 'rent',
   rentDays: 1,
@@ -55,7 +55,7 @@ describe('sale (Plan B)', () => {
   });
 
   it('refunds a sale that is only PAID (no seller email for payout)', async () => {
-    store = createMemoryDealStore({ 'listing-projector': { ownerId: 'maya', depositCents: 0 } });
+    store = createMemoryDealStore({ 'hero-projector': { ownerId: 'maya', depositCents: 0 } });
     svc = createDealService({ store, paypal, payeeMode: 'platform' });
     const deal = await svc.createFromNegotiation(agreed({ kind: 'sale', agreedCents: 18000 }));
     const { paypalOrderId } = await svc.pay(deal.id);

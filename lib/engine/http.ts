@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
+import { getSessionUser } from '@/lib/auth/session';
 import { PayPalError } from '@/lib/paypal';
 import { DealError } from './deals';
 import { InvalidTransitionError } from './transition';
 
-/** Current user for API routes (stand-in until login lands; see NOTES/requests.md). */
-export function currentUserId(req: Request): string | undefined {
-  return req.headers.get('x-user-id') ?? undefined;
+/** The signed-in user's id (the email's local part, e.g. "maya"), from the session cookie. */
+export async function requireUserId(req: Request): Promise<string> {
+  const user = await getSessionUser(req);
+  if (!user) throw new DealError('sign in first', 401);
+  return user.id;
 }
 
 export function errorResponse(err: unknown) {

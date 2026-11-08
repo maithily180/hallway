@@ -5,6 +5,8 @@ export interface InspectionRecord {
   beforePhotos: PhotoUrl[];
   afterPhotos: PhotoUrl[];
   result?: InspectionResult;
+  /** The deduction the owner proposed (0 = clean). The renter responds to this exact figure. */
+  deductionCents?: Cents;
   ownerDecision?: 'ok' | 'dispute';
   renterDecision?: 'ok' | 'dispute';
 }

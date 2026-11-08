@@ -24,7 +24,7 @@ const result = (over: Partial<InspectionResult> = {}): InspectionResult => ({
 
 const agreed: Negotiation = {
   id: 'n1',
-  listingId: 'listing-projector',
+  listingId: 'hero-projector',
   buyerId: 'leo',
   kind: 'rent',
   rentDays: 1,
@@ -122,7 +122,7 @@ describe('return', () => {
     inspector = async (args) => ((seen = args), result());
     const out = await handedOver();
     await svc.returnItem(out.id, ['after-1.jpg'], 'leo');
-    expect(seen).toMatchObject({ before: ['before-1.jpg'], after: ['after-1.jpg'], listingId: 'listing-projector' });
+    expect(seen).toMatchObject({ before: ['before-1.jpg'], after: ['after-1.jpg'], listingId: 'hero-projector' });
   });
 
   it('requires after photos and the buyer', async () => {
@@ -198,7 +198,7 @@ describe('settle: damage', () => {
   });
 
   it('never captures if the seller cannot be paid out', async () => {
-    store = createMemoryDealStore({ 'listing-projector': { ownerId: 'maya', depositCents: 15000 } });
+    store = createMemoryDealStore({ 'hero-projector': { ownerId: 'maya', depositCents: 15000 } });
     svc = createDealService({ store, paypal, payeeMode: 'platform', now: () => clock });
     const deal = await held();
     await svc.handover(deal.id, signHandoverToken(deal.id), ['b.jpg'], 'maya');

@@ -1,5 +1,6 @@
 import type { Cents } from '@/lib/contracts';
 import type { LadderPoint } from '@/lib/negotiation/theater';
+import { Chip } from '@/components/ui';
 import { usd } from './format';
 
 const BLOCKED_LABEL = {
@@ -24,39 +25,39 @@ export function PriceLadder({ points, floorCents }: { points: LadderPoint[]; flo
 
   return (
     <div>
-      <div className="relative h-72 rounded-xl bg-stone-100">
-        <div className="absolute bottom-3 left-[3.25rem] top-3 w-px bg-stone-300" />
+      <div className="relative h-80 rounded-2xl border border-border bg-surface-2">
+        <div className="absolute bottom-3 left-[3.25rem] top-3 w-px bg-border" />
 
         {floorCents !== undefined && (
           <div className="absolute inset-x-0 z-10 flex items-center" style={{ top: `${y(floorCents)}%` }}>
-            <span className="w-12 pr-2 text-right text-xs font-medium text-red-800">{usd(floorCents)}</span>
-            <div className="h-0 flex-1 border-t-2 border-dashed border-red-700" />
-            <span className="ml-2 mr-3 rounded-full bg-red-50 px-2 py-0.5 text-xs text-red-800">
+            <span className="w-12 pr-2 text-right text-xs font-medium text-danger">{usd(floorCents)}</span>
+            <div className="h-0 flex-1 border-t-2 border-dashed border-danger" />
+            <Chip tone="danger" className="ml-2 mr-3">
               🔒 Floor · never revealed
-            </span>
+            </Chip>
           </div>
         )}
 
         {priced.map((p, i) => (
           <div key={i} className="absolute inset-x-0 flex items-center" style={{ top: `${y(p.cents)}%` }}>
-            <span className="w-12 pr-2 text-right text-xs text-stone-600">{usd(p.cents)}</span>
+            <span className="w-12 pr-2 text-right text-xs text-muted">{usd(p.cents)}</span>
             <span
               className={[
                 'z-10 h-3 w-3 -translate-x-[5px] rounded-full border-2',
                 p.kind === 'agreed'
-                  ? 'border-emerald-700 bg-emerald-600'
+                  ? 'border-success bg-success'
                   : p.kind === 'counter'
-                    ? 'border-amber-600 bg-amber-500'
+                    ? 'border-accent bg-accent'
                     : p.kind === 'list'
-                      ? 'border-stone-700 bg-stone-700'
-                      : 'border-stone-400 bg-white',
+                      ? 'border-foreground bg-foreground'
+                      : 'border-muted bg-surface',
               ].join(' ')}
             />
-            <span className="ml-3 text-xs text-stone-700">
+            <span className="ml-3 text-xs">
               {p.kind === 'list' && 'List price'}
               {p.kind === 'offer' && `Buyer offer · round ${p.round}`}
               {p.kind === 'counter' && `Hallway counter · round ${p.round}`}
-              {p.kind === 'agreed' && <strong className="text-emerald-800">Closed</strong>}
+              {p.kind === 'agreed' && <strong className="text-success">Closed</strong>}
             </span>
           </div>
         ))}
@@ -66,8 +67,8 @@ export function PriceLadder({ points, floorCents }: { points: LadderPoint[]; flo
         {points.flatMap((p, i) =>
           p.kind === 'blocked'
             ? [
-                <li key={i} className="rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-800">
-                  {BLOCKED_LABEL[p.reason]}
+                <li key={i}>
+                  <Chip tone="danger">{BLOCKED_LABEL[p.reason]}</Chip>
                 </li>,
               ]
             : [],

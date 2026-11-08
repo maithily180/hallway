@@ -120,6 +120,7 @@ model Inspection {
   beforePhotos   String[]
   afterPhotos    String[]
   result         Json?
+  deductionCents Int?
   ownerDecision  String?
   renterDecision String?
 }
