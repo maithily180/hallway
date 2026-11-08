@@ -186,3 +186,94 @@ describe.skipIf(!enabled)('Prisma stores against Postgres', () => {
     expect(await dealStore.listDeals({ buyerId: 'nobody' })).toEqual([]);
   });
 });
+
+describe.skipIf(!enabled)('seeded marketplace (hosted mode)', () => {
+  type Db = typeof import('@/lib/db').db;
+  let db: Db;
+
+  beforeAll(async () => {
+    process.env.SANDBOX_MAYA_EMAIL = 'maya-sandbox@example.test';
+    ({ db } = await import('@/lib/db'));
+    for (const table of ['webhookEvent', 'inspection', 'deal', 'negoMessage', 'negotiation', 'policy', 'listing', 'user', 'community'] as const) {
+      await (db[table] as { deleteMany: () => Promise<unknown> }).deleteMany();
+    }
+  });
+
+  afterAll(async () => {
+    await db?.$disconnect();
+  });
+
+  it('seeds idempotently: running it twice changes nothing', async () => {
+    const { seedDemo } = await import('@/lib/db-seed');
+    const first = await seedDemo();
+    const counts = async () => [await db.user.count(), await db.listing.count(), await db.policy.count()];
+    const after1 = await counts();
+    const second = await seedDemo();
+    expect(second).toEqual(first);
+    expect(await counts()).toEqual(after1);
+    const { DEMO_LISTINGS } = await import('@/seed/demo');
+    expect(after1[1]).toBe(DEMO_LISTINGS.length);
+  });
+
+  it('gives the hero projector the demo policy and the owner a payout email', async () => {
+    const policy = await db.policy.findUniqueOrThrow({ where: { listingId: 'hero-projector' } });
+    expect(policy).toMatchObject({ listPriceCents: 4000, floorCents: 2500, autoAcceptCents: 3400, maxRounds: 3 });
+    expect((await db.user.findUniqueOrThrow({ where: { id: 'maya' } })).paypalEmail).toBe('maya-sandbox@example.test');
+  });
+
+  it('never overwrites a policy an owner already chose', async () => {
+    await db.policy.update({ where: { listingId: 'hero-projector' }, data: { floorCents: 3000 } });
+    const { seedDemo } = await import('@/lib/db-seed');
+    await seedDemo();
+    expect((await db.policy.findUniqueOrThrow({ where: { listingId: 'hero-projector' } })).floorCents).toBe(3000);
+    await db.policy.update({ where: { listingId: 'hero-projector' }, data: { floorCents: 2500 } });
+  });
+
+  it('gives every priced listing a policy so "make an offer" works on all of them', async () => {
+    const listings = await db.listing.findMany();
+    const policies = new Set((await db.policy.findMany()).map((p) => p.listingId));
+    const unpriced = listings.filter((l) => !policies.has(l.id));
+    expect(unpriced.every((l) => !l.rentPerDayCents && !l.salePriceCents)).toBe(true);
+  });
+
+  it('the app listing store reads Postgres in hosted mode', async () => {
+    const { getListingStore } = await import('@/lib/agents/listings');
+    const hero = await getListingStore().get('hero-projector');
+    expect(hero).toMatchObject({ ownerId: 'maya', depositCents: 15000, rentPerDayCents: 4000 });
+    const { DEMO_LISTINGS } = await import('@/seed/demo');
+    expect((await getListingStore().list('demo-u')).length).toBe(DEMO_LISTINGS.length);
+    expect(await getListingStore().get('nope')).toBeUndefined();
+  });
+
+  it('runs the hero demo end to end on the seeded data', async () => {
+    const { prismaStore } = await import('@/lib/negotiation/prisma-store');
+    const { prismaDealStore } = await import('@/lib/engine/prisma-store');
+    const { createNegotiationService } = await import('@/lib/negotiation/service');
+    const { createDealService } = await import('@/lib/engine/deals');
+    const { createMockPayPal } = await import('@/lib/paypal/mock');
+    const { mockLlm } = await import('@/lib/negotiation/mock-llm');
+    const { signHandoverToken } = await import('@/lib/engine/handover-token');
+
+    const deals = createDealService({ store: prismaDealStore, paypal: createMockPayPal(), payeeMode: 'platform' });
+    const negotiation = createNegotiationService({
+      store: prismaStore,
+      llm: mockLlm,
+      now: () => new Date('2026-11-04T12:00:00Z'),
+      onAgreed: async (n) => ({ dealId: (await deals.createFromNegotiation(n)).id }),
+    });
+
+    const { id } = await negotiation.startNegotiation('hero-projector', 'leo', 'rent', 1);
+    let last;
+    for (const m of ['Would you take $15?', 'How about $26?', '$28 pls']) last = await negotiation.handleBuyerMessage(id, m, 'leo');
+    expect(last!.negotiation).toMatchObject({ status: 'agreed', agreedCents: 2800 });
+
+    const dealId = last!.negotiation.dealId!;
+    const { paypalOrderId } = await deals.pay(dealId, 'leo');
+    expect((await deals.approve(dealId, paypalOrderId, 'leo')).state).toBe('HELD');
+    await deals.handover(dealId, signHandoverToken(dealId), ['before.jpg'], 'maya');
+    await deals.returnItem(dealId, ['after.jpg'], 'leo');
+    const done = await deals.settle(dealId, { deductionCents: 0, ownerOk: true, renterOk: false }, 'maya');
+    expect(done).toMatchObject({ state: 'SETTLED', sellerId: 'maya', buyerId: 'leo' });
+    expect(done.paypal.payoutBatchId).toBeTruthy();
+  });
+});

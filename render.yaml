@@ -12,8 +12,9 @@ services:
     runtime: node
     plan: free
     healthCheckPath: /api/health
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm db:deploy && pnpm build
-    startCommand: pnpm start
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    # migrate, then seed the demo marketplace (idempotent), then serve
+    startCommand: pnpm db:deploy && pnpm seed && pnpm start
     autoDeploy: true # redeploys on every push to main
     envVars:
       - key: NODE_VERSION
