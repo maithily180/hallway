@@ -1,8 +1,14 @@
 import type { NegoMessage, Negotiation, Policy } from '@/lib/contracts';
+import type { ListingRef } from './listing-lookup';
+
+/** The listing facts negotiation needs: who owns it, how it is offered, and at what price. */
+export type ListingInfo = Omit<ListingRef, 'sellerPayoutEmail'>;
 
 /** What the negotiation service needs from persistence. Prisma and in-memory implement it. */
 export interface NegotiationStore {
-  getListingOwner(listingId: string): Promise<{ ownerId: string } | null>;
+  getListingInfo(listingId: string): Promise<ListingInfo | null>;
+  /** Negotiations a user is part of: as the buyer, or as the owner of the listing. */
+  listNegotiationsFor(userId: string): Promise<Negotiation[]>;
   getPolicy(listingId: string): Promise<Policy | null>;
   upsertPolicy(policy: Policy): Promise<Policy>;
   createNegotiation(input: {
@@ -10,6 +16,9 @@ export interface NegotiationStore {
     buyerId: string;
     kind: 'sale' | 'rent';
     rentDays?: number;
+    /** A free loan starts already agreed, at $0. */
+    status?: Negotiation['status'];
+    agreedCents?: number;
   }): Promise<Negotiation>;
   getNegotiation(id: string): Promise<Negotiation | null>;
   updateNegotiation(

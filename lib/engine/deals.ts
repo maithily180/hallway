@@ -45,6 +45,7 @@ const cleanInspection: InspectFn = async () => ({
 });
 
 const DAY_MS = 86_400_000;
+const NO_RETURN_GRACE_MS = DAY_MS; // the owner can claim a missing item 24 hours after the end date
 
 export function createDealService(deps: DealServiceDeps) {
   const { store, paypal, now = () => new Date(), inspect = cleanInspection } = deps;
@@ -90,7 +91,10 @@ export function createDealService(deps: DealServiceDeps) {
       const terms = await store.getListingTerms(n.listingId);
       if (!terms) throw new DealError('listing not found', 404);
 
-      const type: DealType = n.kind === 'rent' ? 'rent' : 'sale';
+      // A rental agreed at $0 is a free loan: only the deposit is held, and it is released on return.
+      const loan = n.kind === 'rent' && n.agreedCents === 0;
+      if (loan && terms.depositCents <= 0) throw new DealError('a loan needs a deposit to hold', 409);
+      const type: DealType = n.kind === 'sale' ? 'sale' : loan ? 'borrow' : 'rent';
       const days = n.kind === 'rent' ? (n.rentDays ?? 1) : 0;
       const start = now();
       return store.createDeal({
@@ -99,10 +103,10 @@ export function createDealService(deps: DealServiceDeps) {
         sellerId: terms.ownerId,
         type,
         // Rent negotiates the nightly rate; the deal's amount is the total rent.
-        amountCents: type === 'rent' ? n.agreedCents * days : n.agreedCents,
-        depositCents: type === 'rent' ? terms.depositCents : 0,
-        start: type === 'rent' ? start.toISOString() : undefined,
-        end: type === 'rent' ? new Date(start.getTime() + days * DAY_MS).toISOString() : undefined,
+        amountCents: type === 'sale' ? n.agreedCents : n.agreedCents * days,
+        depositCents: type === 'sale' ? 0 : terms.depositCents,
+        start: type === 'sale' ? undefined : start.toISOString(),
+        end: type === 'sale' ? undefined : new Date(start.getTime() + days * DAY_MS).toISOString(),
         state: 'AGREED',
         paypal: { captureIds: [] },
         timeline: [{ state: 'AGREED', at: start.toISOString() }],
@@ -300,6 +304,60 @@ export function createDealService(deps: DealServiceDeps) {
     },
 
     /**
+     * The item never came back: once the rental is a day overdue the owner can claim the whole
+     * hold (rent + deposit). OUT -> CLAIMED -> SETTLED, captured in one go.
+     */
+    claimNoReturn(dealId: string, userId: string): Promise<Deal> {
+      return withLock(dealId, async () => {
+        const deal = await mustGet(dealId);
+        if (userId !== deal.sellerId) throw new DealError('only the owner can claim a missing item', 403);
+        if (deal.state === 'SETTLED') return deal; // repeat is a no-op
+        if (deal.state !== 'OUT') throw new DealError(`cannot claim a deal in ${deal.state}`, 409);
+        if (!deal.paypal.authorizationId) throw new DealError('deal has no authorization', 409);
+        if (!deal.end || now().getTime() < Date.parse(deal.end) + NO_RETURN_GRACE_MS) {
+          throw new DealError('it is not overdue yet: you can claim 24 hours after the end date', 409);
+        }
+
+        await assertSellerPayable(deal);
+        const total = deal.amountCents + deal.depositCents;
+        const claimed = await store.saveDeal(move(deal, 'CLAIMED', deal.paypal.authorizationId));
+        const { captureId } = await paypal.captureAuthorization({
+          authorizationId: deal.paypal.authorizationId,
+          amountCents: total,
+          finalCapture: true,
+          requestId: requestId(deal.id, 'capture-noreturn'),
+        });
+        const captured: Deal = {
+          ...claimed,
+          paypal: { ...claimed.paypal, captureIds: [...claimed.paypal.captureIds, captureId] },
+        };
+        return payoutSeller(captured, total, captureId);
+      });
+    },
+
+    /**
+     * The scheduled job: refresh every hold that has reached its third day. Safe to run often:
+     * younger holds are skipped, and the PayPal request id is stable per deal per day.
+     */
+    async reauthorizeDue(): Promise<{ checked: number; refreshed: number; failed: string[] }> {
+      const active = await store.listDeals({ states: ['HELD', 'OUT'] });
+      let refreshed = 0;
+      const failed: string[] = [];
+      for (const deal of active) {
+        const held = deal.timeline.find((t) => t.state === 'HELD');
+        const days = held ? Math.floor((now().getTime() - Date.parse(held.at)) / DAY_MS) : 0;
+        if (days < 3) continue;
+        try {
+          await this.reauthorize(deal.id);
+          refreshed += 1;
+        } catch (err) {
+          failed.push(`${deal.id}: ${(err as Error).message}`);
+        }
+      }
+      return { checked: active.length, refreshed, failed };
+    },
+
+    /**
      * Authorizations are only reliably capturable in the first 3 days. Long rentals refresh
      * the hold from day 3 on (allowed until day 29).
      */
@@ -347,6 +405,13 @@ export function createDealService(deps: DealServiceDeps) {
         }
 
         const owedCents = deal.amountCents + deductionCents;
+        if (owedCents === 0) {
+          // A free loan returned clean: nothing is owed, so the whole deposit hold is released.
+          await paypal.voidAuthorization(deal.paypal.authorizationId, requestId(deal.id, 'void-return'));
+          const record = await store.getInspection(deal.id);
+          if (record) await store.saveInspection({ ...record, ownerDecision: 'ok', renterDecision: 'ok' });
+          return store.saveDeal(move(deal, 'SETTLED', deal.paypal.authorizationId));
+        }
         await assertSellerPayable(deal);
         const { captureId } = await paypal.captureAuthorization({
           authorizationId: deal.paypal.authorizationId,

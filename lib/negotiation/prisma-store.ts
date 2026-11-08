@@ -3,6 +3,7 @@ import {
   NegoMessageSchema,
   NegotiationSchema,
   PolicySchema,
+  type ListingMode,
   type NegoMessage,
   type Negotiation,
   type Policy,
@@ -23,9 +24,23 @@ const toMessage = (row: Prisma.NegoMessageGetPayload<object>): NegoMessage =>
   NegoMessageSchema.parse({ ...nullToUndef(row), createdAt: row.createdAt.toISOString() });
 
 export const prismaStore: NegotiationStore = {
-  async getListingOwner(listingId) {
-    const l = await db.listing.findUnique({ where: { id: listingId }, select: { ownerId: true } });
-    return l;
+  async getListingInfo(listingId) {
+    const l = await db.listing.findUnique({ where: { id: listingId } });
+    if (!l) return null;
+    return {
+      ownerId: l.ownerId,
+      modes: l.modes as ListingMode[],
+      depositCents: l.depositCents ?? 0,
+      salePriceCents: l.salePriceCents ?? undefined,
+      rentPerDayCents: l.rentPerDayCents ?? undefined,
+    };
+  },
+  async listNegotiationsFor(userId) {
+    const owned = await db.listing.findMany({ where: { ownerId: userId }, select: { id: true } });
+    const rows = await db.negotiation.findMany({
+      where: { OR: [{ buyerId: userId }, { listingId: { in: owned.map((l) => l.id) } }] },
+    });
+    return rows.map(toNegotiation);
   },
   async getPolicy(listingId) {
     const row = await db.policy.findUnique({ where: { listingId } });

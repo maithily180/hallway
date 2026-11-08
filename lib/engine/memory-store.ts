@@ -34,12 +34,13 @@ export function createMemoryDealStore(
       deals.set(deal.id, deal);
       return deal;
     },
-    async listDeals({ ownerId, buyerId, type }) {
+    async listDeals({ ownerId, buyerId, type, states }) {
       return [...deals.values()].filter(
         (d) =>
           (!ownerId || d.sellerId === ownerId) &&
           (!buyerId || d.buyerId === buyerId) &&
-          (!type || d.type === type),
+          (!type || d.type === type) &&
+          (!states || states.includes(d.state)),
       );
     },
     async findDealByPayPalId({ orderId, authorizationId, captureId, payoutBatchId }) {

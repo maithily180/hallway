@@ -52,9 +52,9 @@ export const prismaDealStore: DealStore = {
     const { id, ...rest } = deal;
     return toDeal(await db.deal.update({ where: { id }, data: toRow(rest) }));
   },
-  async listDeals({ ownerId, buyerId, type }) {
+  async listDeals({ ownerId, buyerId, type, states }) {
     const rows = await db.deal.findMany({
-      where: { sellerId: ownerId, buyerId, type },
+      where: { sellerId: ownerId, buyerId, type, state: states ? { in: states } : undefined },
       orderBy: { start: 'asc' },
     });
     return rows.map(toDeal);

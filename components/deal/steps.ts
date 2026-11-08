@@ -22,7 +22,16 @@ export function stepsFor(deal: Deal): Step[] {
           PAID: `${usd(deal.amountCents)} captured by PayPal.`,
           SETTLED: 'Seller paid out.',
         }
-      : {
+      : deal.type === 'borrow'
+        ? {
+            AGREED: `Free loan agreed. A ${usd(deal.depositCents)} deposit is held while it is out.`,
+            AWAITING_PAYMENT: 'Waiting for the borrower to approve the deposit hold in PayPal.',
+            HELD: `${usd(deal.depositCents)} deposit held on a PayPal authorization. Nothing has moved yet.`,
+            OUT: 'Handed over; "before" photos saved.',
+            RETURNED: 'Returned; photos compared.',
+            SETTLED: 'Returned in good order: the deposit hold was released and nothing was charged.',
+          }
+        : {
           AGREED: `Rent agreed at ${usd(deal.amountCents)}, deposit ${usd(deal.depositCents)}.`,
           AWAITING_PAYMENT: 'Waiting for the renter to approve in PayPal.',
           HELD: `${usd(total)} held on one PayPal authorization (rent ${usd(deal.amountCents)} + deposit ${usd(deal.depositCents)}). Nothing has moved yet.`,
@@ -53,16 +62,23 @@ export function stepsFor(deal: Deal): Step[] {
   const reached = new Set(deal.timeline.map((t) => t.state));
   const ending = ENDINGS.filter((s) => reached.has(s));
   // A claim sits between RETURNED and SETTLED: show it inline, not as a dead end.
-  const steps = [...path, ...ending.filter((s) => s === 'CLAIMED')].sort(
-    (a, b) => order(deal, a) - order(deal, b),
-  );
+  // The item never came back: OUT went straight to a claim, so there is no "Returned" step.
+  const neverReturned = reached.has('CLAIMED') && !reached.has('RETURNED') && reached.has('OUT');
+  const steps = [...path, ...ending.filter((s) => s === 'CLAIMED')]
+    .filter((s) => !(neverReturned && s === 'RETURNED'))
+    .sort((a, b) => order(deal, a) - order(deal, b));
   const terminal = ending.filter((s) => s !== 'CLAIMED');
   const visible = terminal.length ? path.filter((s) => reached.has(s)).concat(terminal) : steps;
 
   return visible.map((state) => ({
     state,
-    title: title[state],
-    detail: detail[state] ?? endDetail[state] ?? '',
+    title: neverReturned && state === 'CLAIMED' ? 'Not returned' : title[state],
+    detail:
+      neverReturned && state === 'CLAIMED'
+        ? `Not returned: the owner claimed the whole ${usd(total)} hold.`
+        : neverReturned && state === 'SETTLED'
+          ? `The full ${usd(total)} hold was captured and the owner paid out.`
+          : (detail[state] ?? endDetail[state] ?? ''),
   }));
 }
 

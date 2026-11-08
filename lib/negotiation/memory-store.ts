@@ -1,9 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import type { NegoMessage, Negotiation, Policy } from '@/lib/contracts';
 import type { ListingLookup } from './listing-lookup';
-import type { NegotiationStore } from './store';
+import type { ListingInfo, NegotiationStore } from './store';
 
 export const HERO_LISTING_ID = 'hero-projector';
+
+const HERO_INFO: ListingInfo = {
+  ownerId: 'maya',
+  modes: ['rent'],
+  depositCents: 15000,
+  rentPerDayCents: 4000,
+};
 
 /** In-memory store for tests and no-database mock mode, seeded with the hero projector. */
 export function createMemoryStore(
@@ -12,10 +19,10 @@ export function createMemoryStore(
   const policies = new Map<string, Policy>();
   const negotiations = new Map<string, Negotiation>();
   const messages = new Map<string, NegoMessage[]>();
-  const owners = new Map<string, string>();
+  const infos = new Map<string, ListingInfo>();
 
   if (opts.seedHero) {
-    owners.set(HERO_LISTING_ID, 'maya');
+    infos.set(HERO_LISTING_ID, HERO_INFO);
     policies.set(HERO_LISTING_ID, {
       listingId: HERO_LISTING_ID,
       listPriceCents: 4000,
@@ -29,12 +36,24 @@ export function createMemoryStore(
     });
   }
 
+  async function getListingInfo(listingId: string): Promise<ListingInfo | null> {
+    const ref = await opts.lookup?.(listingId);
+    if (ref) {
+      const { sellerPayoutEmail, ...info } = ref;
+      void sellerPayoutEmail;
+      return info;
+    }
+    return infos.get(listingId) ?? null;
+  }
+
   return {
-    async getListingOwner(listingId) {
-      const ref = await opts.lookup?.(listingId);
-      if (ref) return { ownerId: ref.ownerId };
-      const ownerId = owners.get(listingId);
-      return ownerId ? { ownerId } : null;
+    getListingInfo,
+    async listNegotiationsFor(userId) {
+      const out: Negotiation[] = [];
+      for (const n of negotiations.values()) {
+        if (n.buyerId === userId || (await getListingInfo(n.listingId))?.ownerId === userId) out.push(n);
+      }
+      return out;
     },
     async getPolicy(listingId) {
       return policies.get(listingId) ?? null;

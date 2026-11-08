@@ -133,7 +133,7 @@ describe('negotiation access', () => {
 
   it('only the buyer can send offers', async () => {
     const ns = setup();
-    const { id } = await ns.startNegotiation(HERO_LISTING_ID, 'leo', 'sale');
+    const { id } = await ns.startNegotiation(HERO_LISTING_ID, 'leo', 'rent', 1);
     await expect(ns.handleBuyerMessage(id, 'How about $30?', 'maya')).rejects.toMatchObject({ status: 403 });
     await expect(ns.handleBuyerMessage(id, 'How about $30?', 'sam')).rejects.toMatchObject({ status: 403 });
     await expect(ns.handleBuyerMessage(id, 'How about $30?', 'leo')).resolves.toBeTruthy();

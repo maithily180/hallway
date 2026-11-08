@@ -10,7 +10,7 @@ const RENT: Partial<Record<DealState, DealState[]>> = {
   AGREED: ['AWAITING_PAYMENT', 'VOIDED'],
   AWAITING_PAYMENT: ['HELD', 'VOIDED'],
   HELD: ['OUT', 'VOIDED'],
-  OUT: ['RETURNED'],
+  OUT: ['RETURNED', 'CLAIMED'], // CLAIMED from OUT: the item was never returned
   RETURNED: ['SETTLED', 'CLAIMED'],
   CLAIMED: ['SETTLED'],
 };

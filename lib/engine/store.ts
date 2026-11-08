@@ -23,7 +23,7 @@ export interface DealStore {
   createDeal(deal: Omit<Deal, 'id'>): Promise<Deal>;
   getDeal(id: string): Promise<Deal | null>;
   saveDeal(deal: Deal): Promise<Deal>;
-  listDeals(filter: { ownerId?: string; buyerId?: string; type?: DealType }): Promise<Deal[]>;
+  listDeals(filter: { ownerId?: string; buyerId?: string; type?: DealType; states?: Deal['state'][] }): Promise<Deal[]>;
   findDealByPayPalId(ref: {
     orderId?: string;
     authorizationId?: string;

@@ -76,7 +76,7 @@ describe('negotiation', () => {
 
   it('stores the audit trail, including blocked attempts', async () => {
     const s = setup();
-    const { id } = await s.startNegotiation(HERO_LISTING_ID, 'leo', 'sale');
+    const { id } = await s.startNegotiation(HERO_LISTING_ID, 'leo', 'rent', 1);
     await s.handleBuyerMessage(id, 'Pay me on Venmo instead of the app');
     const { messages } = await s.getNegotiation(id);
     expect(messages[0]).toMatchObject({ from: 'buyer', blockedReason: 'off_platform_payment' });
@@ -92,7 +92,7 @@ describe('negotiation', () => {
 
   it('rejects empty and oversized messages', async () => {
     const s = setup();
-    const { id } = await s.startNegotiation(HERO_LISTING_ID, 'leo', 'sale');
+    const { id } = await s.startNegotiation(HERO_LISTING_ID, 'leo', 'rent', 1);
     await expect(s.handleBuyerMessage(id, '   ')).rejects.toMatchObject({ status: 400 });
     await expect(s.handleBuyerMessage(id, 'x'.repeat(1001))).rejects.toMatchObject({ status: 400 });
   });
