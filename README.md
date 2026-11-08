@@ -98,7 +98,12 @@ curl -b leo.jar -X POST http://localhost:3000/api/negotiations -H 'Content-Type:
 1. Create a US business + two personal sandbox accounts in the [PayPal Developer Dashboard](https://developer.paypal.com/dashboard/accounts), and a Merchant app attached to the business account.
 2. Fill `.env` (see below). Leave `MOCK_PAYPAL=0`.
 3. `pnpm db:deploy` against your Postgres, then `pnpm dev`.
-4. Walk every money call by hand with `pnpm spike <token|sale|rent|void|refund|payee|payout>`. Order steps print an approve URL; log in as the buyer to approve.
+4. Walk every money call with `pnpm spike <token|sale|rent|void|refund|payee|payout>`. Order steps print an approve URL (log in as the buyer to approve), or set `SPIKE_CARD=1` to pay with PayPal's published sandbox test card and skip the login.
+5. Run the opt-in sandbox tests, which drive `lib/paypal/client.ts` against the real sandbox (partial capture with `final_capture`, idempotent retries, void, refund, Payouts):
+
+   ```bash
+   PAYPAL_SANDBOX_TESTS=1 node --env-file=.env node_modules/vitest/vitest.mjs run tests/integration/paypal-sandbox.test.ts
+   ```
 
 ### Commands
 

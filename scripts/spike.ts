@@ -47,7 +47,11 @@ async function call(path: string, body?: unknown, requestId: string = randomUUID
   return { ok: res.ok, json };
 }
 
+/** SPIKE_CARD=1 pays with the sandbox test card instead of a PayPal login (no approval step). */
+const CARD = process.env.SPIKE_CARD === '1';
+
 async function waitForApproval(order: { id: string; links: { rel: string; href: string }[] }) {
+  if (CARD) return;
   const url = order.links.find((l) => l.rel === 'payer-action' || l.rel === 'approve')?.href;
   console.log(`\n  Approve as Leo: ${url}`);
   const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -64,23 +68,39 @@ function orderBody(intent: 'CAPTURE' | 'AUTHORIZE', cents: number, payeeEmail?: 
         ...(payeeEmail ? { payee: { email_address: payeeEmail } } : {}),
       },
     ],
-    payment_source: {
-      paypal: {
-        experience_context: {
-          return_url: 'https://example.com/return',
-          cancel_url: 'https://example.com/cancel',
-          user_action: 'PAY_NOW',
+    payment_source: CARD
+      ? {
+          // PayPal's published sandbox test card: no buyer login needed, so the whole spike can be scripted.
+          card: {
+            name: 'Test Buyer',
+            number: process.env.SPIKE_CARD_NUMBER ?? '4111111111111111',
+            expiry: '2030-12',
+            security_code: '123',
+          },
+        }
+      : {
+          paypal: {
+            experience_context: {
+              return_url: 'https://example.com/return',
+              cancel_url: 'https://example.com/cancel',
+              user_action: 'PAY_NOW',
+            },
+          },
         },
-      },
-    },
   };
 }
+
+/** A card order with intent CAPTURE is captured as it is created. */
+const capturedAlready = (order: { purchase_units?: { payments?: { captures?: unknown[] } }[] }) =>
+  !!order.purchase_units?.[0]?.payments?.captures?.length;
 
 async function authorize(cents: number, payeeEmail?: string) {
   const created = await call('/v2/checkout/orders', orderBody('AUTHORIZE', cents, payeeEmail));
   if (!created.ok) return null;
   await waitForApproval(created.json);
-  const auth = await call(`/v2/checkout/orders/${created.json.id}/authorize`);
+  // A card order is authorized as it is created; a PayPal-wallet order is authorized after approval.
+  const existing = created.json.purchase_units?.[0]?.payments?.authorizations?.[0]?.id;
+  const auth = existing ? { ok: true, json: created.json } : await call(`/v2/checkout/orders/${created.json.id}/authorize`);
   if (!auth.ok) return null;
   const authorizationId = auth.json.purchase_units[0].payments.authorizations[0].id;
   console.log(`  authorization ${authorizationId}`);
@@ -97,7 +117,7 @@ const steps: Record<string, () => Promise<void>> = {
     const created = await call('/v2/checkout/orders', orderBody('CAPTURE', 2800));
     if (!created.ok) return;
     await waitForApproval(created.json);
-    const cap = await call(`/v2/checkout/orders/${created.json.id}/capture`);
+    const cap = capturedAlready(created.json) ? created : await call(`/v2/checkout/orders/${created.json.id}/capture`);
     console.log('  capture', cap.json?.purchase_units?.[0]?.payments?.captures?.[0]?.id);
   },
 
@@ -114,6 +134,11 @@ const steps: Record<string, () => Promise<void>> = {
       headers: { Authorization: `Bearer ${await token()}` },
     });
     console.log('  authorization now:', (await check.json()).status, '(expect CAPTURED, remainder released)');
+    const again = await call(`/v2/payments/authorizations/${authId}/capture`, {
+      amount: { currency_code: 'USD', value: dollars(100) },
+      final_capture: true,
+    });
+    console.log(again.ok ? '  UNEXPECTED: a second capture succeeded' : '  second capture refused, as expected: the deposit was released');
   },
 
   // Cancel before pickup.
@@ -127,7 +152,7 @@ const steps: Record<string, () => Promise<void>> = {
     const created = await call('/v2/checkout/orders', orderBody('CAPTURE', 2800));
     if (!created.ok) return;
     await waitForApproval(created.json);
-    const cap = await call(`/v2/checkout/orders/${created.json.id}/capture`);
+    const cap = capturedAlready(created.json) ? created : await call(`/v2/checkout/orders/${created.json.id}/capture`);
     const captureId = cap.json?.purchase_units?.[0]?.payments?.captures?.[0]?.id;
     if (captureId) await call(`/v2/payments/captures/${captureId}/refund`, {});
   },
