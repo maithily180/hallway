@@ -57,9 +57,20 @@ sale:  AGREED → AWAITING_PAYMENT → PAID → SETTLED        (PAID → REFUNDE
 rent:  AGREED → AWAITING_PAYMENT → HELD → OUT → RETURNED → SETTLED
                                      HELD → VOIDED        (cancel before pickup)
                                      RETURNED → CLAIMED → SETTLED   (deduction agreed)
+                                     OUT → CLAIMED → SETTLED        (never returned: the owner claims the hold)
+loan:  same as rent, with a $0 rent. With no deposit there is nothing to pay: AGREED → HELD (the borrower confirms)
 ```
 
 Only `lib/engine/transition.ts` changes a deal's state. Every PayPal call sends `PayPal-Request-Id = ${dealId}:${step}`, so retries and double-clicks never act twice.
+
+### Beyond buy and rent
+
+- **Free loans.** A lend-only listing (or "Ask to borrow") has nothing to negotiate: it starts agreed at $0. If the owner sets a deposit it is held as a PayPal authorization and *voided* on a clean return (nothing is captured); a damage deduction is captured only if both sides agree. With no deposit there is nothing to pay or hold, so the borrower just confirms.
+- **One listing, two prices.** A listing offered for both rent and sale has one policy. When the buyer negotiates the other mode, the list price becomes that mode's price and the floor and auto-accept scale by the same ratio, so the owner's intent (a floor at 62.5% of list, say) is kept.
+- **Deposit holds on long rentals.** A PayPal authorization is most reliably capturable for 3 days. `POST /api/jobs/reauthorize` (protected by `CRON_SECRET`) refreshes every hold that has reached day 3; schedule it with any cron (a ready-to-uncomment Render job is in `render.yaml`).
+- **Never returned.** A day after the end date the owner can claim the whole hold (rent + deposit): Hallway captures it and pays it out.
+- **Expiry and limits.** A negotiation past the owner's deadline closes as expired, and stops accepting messages after 40, so questions can't run up model calls.
+- **Find your deals.** `/deals` lists what is waiting on you (including "ask me" offers), deals in progress and finished ones, with the next step on each.
 
 ## Run it
 
@@ -124,6 +135,7 @@ See [.env.example](.env.example). Key variables:
 | `PAYPAL_PLATFORM_EMAIL` | Hallway's business account (Plan B receiver) |
 | `PAYEE_MODE` | `platform` (Hallway receives, then pays the seller out) or `direct` (seller is the order payee) |
 | `HANDOVER_SECRET` | Signs the rental QR codes |
+| `CRON_SECRET` | Protects `POST /api/jobs/reauthorize` (the hold-refresh job); unset = job off |
 | `AUTH_SECRET` | Signs the session cookie |
 | `DEMO_PASSWORD` | Shared password for the demo and judge logins |
 | `CAMPUS_EMAIL_DOMAIN` | Only emails on this domain can sign in (`demo.edu`) |
@@ -154,7 +166,7 @@ An Anthropic Claude model (vision + tool calling) via `lib/llm`, used to parse b
 
 ## Tests
 
-`pnpm test` runs the engine state machine, the PayPal mock, the negotiation decision function (including the demo script and a floor invariant over thousands of random offers), the services, and the 50-attack injection suite in `tests/negotiation/injection.test.ts`.
+`pnpm test` runs the engine state machine, the PayPal mock, the negotiation decision function (including the demo script and a floor invariant over thousands of random offers), the negotiation and deal services (access rules, consent on deductions, free loans, never-returned claims, the hold-refresh job, per-mode pricing, expiry), and the 50-attack injection suite in `tests/negotiation/injection.test.ts`. CI (`.github/workflows`) also runs the whole suite against a real Postgres.
 
 ### Database integration tests
 

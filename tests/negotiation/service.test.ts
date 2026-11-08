@@ -97,3 +97,15 @@ describe('negotiation', () => {
     await expect(s.handleBuyerMessage(id, 'x'.repeat(1001))).rejects.toMatchObject({ status: 400 });
   });
 });
+
+describe('message limit', () => {
+  it('stops accepting messages after the cap, so questions cannot run up model calls forever', async () => {
+    const { MAX_BUYER_MESSAGES } = await import('@/lib/negotiation/service');
+    const s = setup();
+    const { id } = await s.startNegotiation(HERO_LISTING_ID, 'leo', 'rent', 1);
+    for (let i = 0; i < MAX_BUYER_MESSAGES; i++) await s.handleBuyerMessage(id, 'Is the HDMI cable included?', 'leo');
+    await expect(s.handleBuyerMessage(id, 'One more question?', 'leo')).rejects.toMatchObject({ status: 409 });
+    // the audit trail kept every message
+    expect((await s.getNegotiation(id, 'leo')).messages.filter((m) => m.from === 'buyer')).toHaveLength(MAX_BUYER_MESSAGES);
+  });
+});

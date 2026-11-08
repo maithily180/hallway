@@ -35,6 +35,9 @@ export interface ServiceDeps {
 }
 
 const MAX_RENT_DAYS = 29; // a PayPal authorization holds funds for 29 days
+// Only counted rounds are limited by the policy, so questions and holds could go on forever, and
+// each one is a model call. A negotiation stops accepting messages after this many.
+export const MAX_BUYER_MESSAGES = 40;
 
 export function createNegotiationService({ store, llm, now = () => new Date(), onAgreed }: ServiceDeps) {
   async function assertParticipant(n: Negotiation, userId: string) {
@@ -234,6 +237,10 @@ export function createNegotiationService({ store, llm, now = () => new Date(), o
       negotiation = await expireIfDue(negotiation, await store.getPolicy(negotiation.listingId));
       if (negotiation.status !== 'open') {
         throw new NegotiationError(`negotiation is ${negotiation.status}`, 409);
+      }
+      const sent = (await store.listMessages(negotiationId)).filter((m) => m.from === 'buyer').length;
+      if (sent >= MAX_BUYER_MESSAGES) {
+        throw new NegotiationError('this negotiation has reached its message limit; start a new one', 409);
       }
       const policy = await policyFor(negotiation);
 

@@ -120,3 +120,51 @@ describe('sellerDecision', () => {
     await expect(service.sellerDecision(id, 'accept', 'maya')).rejects.toMatchObject({ status: 409 });
   });
 });
+
+describe('buildLadder: replies that are not counters', () => {
+  const heroPolicy = (over: Record<string, unknown> = {}) => ({
+    listingId: HERO_LISTING_ID,
+    listPriceCents: 4000,
+    floorCents: 2500,
+    autoAcceptCents: 3400,
+    mode: 'full_auto',
+    strategy: 'best_price',
+    maxRounds: 3,
+    tone: 'friendly',
+    extrasAllowed: [],
+    ...over,
+  });
+  const kinds = (ladder: ReturnType<typeof buildLadder>) => ladder.map((p) => p.kind);
+
+  it('an "ask me" escalation echoes the buyer’s number: no counter is drawn', async () => {
+    const { service } = setup();
+    await service.createOrUpdatePolicy(heroPolicy({ mode: 'ask_me' }), 'maya');
+    const { id } = await service.startNegotiation(HERO_LISTING_ID, 'leo', 'rent', 1);
+    await service.handleBuyerMessage(id, 'How about $30?', 'leo');
+    const { negotiation, messages } = await service.getNegotiation(id, 'leo');
+    expect(negotiation.status).toBe('needs_seller');
+    expect(kinds(buildLadder(4000, messages, negotiation))).toEqual(['list', 'offer']);
+  });
+
+  it('a final decline restates our last offer: it is not a second counter', async () => {
+    const { service } = setup();
+    const { id } = await service.startNegotiation(HERO_LISTING_ID, 'leo', 'rent', 1);
+    for (const t of ['Would you take $15?', 'How about $16?', 'Last try, $17']) await service.handleBuyerMessage(id, t, 'leo');
+    const { negotiation, messages } = await service.getNegotiation(id, 'leo');
+    expect(negotiation.status).toBe('declined');
+    const ladder = buildLadder(4000, messages, negotiation);
+    const counters = ladder.filter((p) => p.kind === 'counter');
+    // two real counters ($36 then $30), not three: the closing "my last offer still stands" is not one
+    expect(counters.map((p) => (p as { cents: number }).cents)).toEqual([3600, 3000]);
+  });
+
+  it('the same counter repeated against another lowball is drawn once', async () => {
+    const { service } = setup();
+    const { id } = await service.startNegotiation(HERO_LISTING_ID, 'leo', 'rent', 1);
+    await service.handleBuyerMessage(id, 'Would you take $15?', 'leo');
+    // the engine never raises its own price, so a lower offer in round 1 would repeat $36 only if it held
+    const { negotiation, messages } = await service.getNegotiation(id, 'leo');
+    const once = buildLadder(4000, messages, negotiation).filter((p) => p.kind === 'counter');
+    expect(once).toHaveLength(1);
+  });
+});

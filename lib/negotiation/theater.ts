@@ -20,6 +20,7 @@ export function buildLadder(
 ): LadderPoint[] {
   const points: LadderPoint[] = [{ kind: 'list', cents: listPriceCents }];
   let round = 0;
+  let lastCounter: Cents | undefined;
   // On an agreed deal the last agent message is the acceptance, drawn as the close, not a counter.
   const closingMessageId =
     negotiation.status === 'agreed' ? messages.findLast((m) => m.from === 'agent')?.id : undefined;
@@ -35,9 +36,12 @@ export function buildLadder(
     } else if (m.from === 'agent' && m.id !== closingMessageId) {
       const price = extractAmountsCents(m.text)[0];
       const last = points[points.length - 1];
-      // Only turns that answered an offer are counters; a hold restates the last one.
-      if (price !== undefined && last?.kind === 'offer') {
+      // Only a turn that answered an offer with a NEW price of ours is a counter. A reply that echoes
+      // the buyer's own number ("let me check with the seller on $16") or restates our standing price
+      // (a hold, or a final "my last offer still stands") is not.
+      if (price !== undefined && last?.kind === 'offer' && price !== last.cents && price !== lastCounter) {
         points.push({ kind: 'counter', cents: price, round: last.round });
+        lastCounter = price;
       }
     }
   }
