@@ -1,0 +1,9 @@
+# Requests
+
+Format: date · from · to · path · what and why
+- 2026-11-02 · Chandrani · Maithily · lib/engine/runtime.ts · `inspectCondition(before, after, listing)` is in `lib/agents` (deduction capped at deposit, 0 below 0.6 confidence, safe fallback on model failure). Please wire it as the `inspect` dependency.
+- 2026-11-02 · Chandrani · Maithily · m/spike · main now has the app shell, `lib/contracts`, `lib/llm` (exports `llm`) and `components/ui`. #1 conflicts with main; please rebase onto main, keeping main's versions of those paths.
+- 2026-11-02 · Chandrani · Maithily · prisma, lib/db.ts · `/sell` publishes via `POST /api/listings` (mine, needs `lib/db.ts` + the Listing model on main) then `PUT /api/policies/:id` (yours). Both 404 on main until #1 lands; the screen shows a friendly message meanwhile.
+- 2026-11-02 · Chandrani · Maithily · lib/negotiation/http.ts · Login is in: `getSessionUser(req)` from `lib/auth/session` returns `{ id, email, name }` or null (async). Ids are the email local part (`maya`, `leo`) to match your demo data until users come from the DB.
+- 2026-11-03 · Chandrani · Maithily · prisma · Listings live in an in-memory store (`lib/agents/listings.ts`, `ListingStore` interface) seeded from `seed/demo.ts` (hero projector id `hero-projector`, owner `maya`) until the schema is on main; I'll add the Prisma store and pgvector embeddings once #1 is rebased. Matches call `POST /api/negotiations` with `{ listingId, kind, rentDays: 1 }`.
+- 2026-11-04 C → M: `InspectionCard` is ready: `<InspectionCard result={inspection} before={beforePhotos} after={afterPhotos} depositCents={deal.depositCents} />` from `@/components/ui`. My Stuff calls `GET /api/deals?ownerId=<userId>` and expects `Deal[]`; rentals need `start`/`end` to show on the calendar, and earnings sum `SETTLED` deals' `amountCents`.

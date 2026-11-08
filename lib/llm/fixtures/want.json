@@ -1,0 +1,7 @@
+{
+  "item": "projector",
+  "intent": "rent",
+  "budgetCents": 3500,
+  "window": { "start": "2026-11-04T19:00:00Z", "end": "2026-11-05T10:00:00Z" },
+  "needs": ["HDMI"]
+}

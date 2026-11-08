@@ -1,1 +1,88 @@
-﻿@import 'tailwindcss';
+@import "tailwindcss";
+
+/* One accent (campus orange), warm neutrals, ink for text. */
+:root {
+  --background: #f8f5f0;
+  --surface: #ffffff;
+  --surface-2: #f2ede5;
+  --foreground: #1d1a16;
+  --muted: #6f665b;
+  --border: #e6dfd3;
+  --accent: #e2572b;
+  --accent-strong: #c8461d;
+  --accent-soft: #fdebe3;
+  --accent-foreground: #ffffff;
+  --success: #23764a;
+  --success-soft: #e3f3ea;
+  --danger: #bf3a2b;
+  --danger-soft: #fbe7e4;
+  --ring: #e2572b55;
+  --shadow-sm: 0 1px 2px #1d1a160d, 0 1px 1px #1d1a1608;
+  --shadow-md: 0 4px 16px -4px #1d1a161f, 0 2px 4px -2px #1d1a160f;
+  --shadow-lg: 0 12px 32px -8px #1d1a1629;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01", "cv11";
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.02em;
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(6px);
+  }
+  to {
+    transform: none;
+  }
+}
+
+.animate-rise {
+  animation: rise 0.35s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise {
+    animation: none;
+  }
+}

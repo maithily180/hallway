@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { LlmApi, Policy } from '@/lib/contracts';
+import type { Policy } from '@/lib/contracts';
+import type { LlmApi } from '@/lib/negotiation/llm-api';
 import { runTurn } from '@/lib/negotiation/turn';
 import { checkOutgoing, extractAmountsCents } from '@/lib/negotiation/guard';
 import { scanBuyerMessage } from '@/lib/negotiation/dealguard';

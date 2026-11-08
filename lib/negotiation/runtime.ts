@@ -1,5 +1,5 @@
 import 'server-only';
-import type { LlmApi } from '@/lib/contracts';
+import type { LlmApi } from '@/lib/negotiation/llm-api';
 import { getDealService } from '@/lib/engine/runtime';
 import { createMemoryStore } from './memory-store';
 import { mockLlm } from './mock-llm';

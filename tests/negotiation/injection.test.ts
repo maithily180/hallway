@@ -6,7 +6,8 @@
  * floor. The guarantees must hold anyway, because they come from code, not from the model.
  */
 import { describe, expect, it } from 'vitest';
-import type { LlmApi, Policy } from '@/lib/contracts';
+import type { Policy } from '@/lib/contracts';
+import type { LlmApi } from '@/lib/negotiation/llm-api';
 import type { NegotiationState } from '@/lib/negotiation/decide';
 import { extractAmountsCents } from '@/lib/negotiation/guard';
 import { runTurn } from '@/lib/negotiation/turn';

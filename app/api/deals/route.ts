@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { DealTypeSchema } from '@/lib/contracts';
+import { DealType } from '@/lib/contracts';
 import { errorResponse } from '@/lib/engine/http';
 import { getDealService } from '@/lib/engine/runtime';
 
 const Query = z.object({
   ownerId: z.string().optional(),
   buyerId: z.string().optional(),
-  type: DealTypeSchema.optional(),
+  type: DealType.optional(),
 });
 
 export async function GET(req: Request) {

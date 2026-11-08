@@ -1,4 +1,5 @@
-import { ParsedOfferSchema, type LlmApi, type ParsedOffer } from '@/lib/contracts';
+import { ParsedOfferSchema, type ParsedOffer } from '@/lib/contracts';
+import type { LlmApi } from '@/lib/negotiation/llm-api';
 
 const SYSTEM = `You extract structured data from one buyer message in a marketplace chat.
 Return JSON only: {"offerCents": integer cents or null, "conditions": string[], "intent": "offer"|"counter"|"accept"|"question"|"other"}.

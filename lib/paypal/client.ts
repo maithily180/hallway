@@ -34,6 +34,8 @@ async function accessToken(): Promise<string> {
   return cached.token;
 }
 
+// PayPal responses are untyped JSON; callers pick out the fields they need.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function post<T = any>(path: string, body: unknown, requestId?: string): Promise<T> {
   const res = await fetch(`${config().base}${path}`, {
     method: 'POST',

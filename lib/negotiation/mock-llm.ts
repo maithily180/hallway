@@ -1,4 +1,4 @@
-import type { LlmApi } from '@/lib/contracts';
+import type { LlmApi } from '@/lib/negotiation/llm-api';
 import type { Decision } from './decide';
 import { templateReply } from './phrase';
 

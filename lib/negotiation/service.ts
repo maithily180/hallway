@@ -1,11 +1,5 @@
-import {
-  PolicySchema,
-  type LlmApi,
-  type NegoMessage,
-  type Negotiation,
-  type Policy,
-  type PolicyView,
-} from '@/lib/contracts';
+import { PolicySchema, type NegoMessage, type Negotiation, type Policy, type PolicyView } from '@/lib/contracts';
+import type { LlmApi } from '@/lib/negotiation/llm-api';
 import { toPolicyView } from './phrase';
 import { latestOfferCents } from './theater';
 import type { NegotiationStore } from './store';

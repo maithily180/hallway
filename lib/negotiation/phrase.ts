@@ -1,11 +1,16 @@
-import { PolicyViewSchema, type Cents, type LlmApi, type Policy, type PolicyView } from '@/lib/contracts';
+import { PolicyViewSchema, type Cents, type Policy, type PolicyView } from '@/lib/contracts';
+import type { LlmApi } from '@/lib/negotiation/llm-api';
 import { checkOutgoing } from './guard';
 import type { BlockedReason } from './dealguard';
 import type { Decision } from './decide';
 
 /** The only policy shape that may reach an LLM: floor and auto-accept are stripped. */
 export function toPolicyView(policy: Policy): PolicyView {
-  return PolicyViewSchema.parse(policy);
+  // Strip explicitly, then validate: the schema is strict, so it also rejects any leftover secret field.
+  const { floorCents, autoAcceptCents, ...view } = policy;
+  void floorCents;
+  void autoAcceptCents;
+  return PolicyViewSchema.parse(view);
 }
 
 const usd = (cents: Cents) => `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;

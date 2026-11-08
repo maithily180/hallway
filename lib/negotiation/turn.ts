@@ -1,4 +1,5 @@
-import type { LlmApi, Negotiation, ParsedOffer, Policy } from '@/lib/contracts';
+import type { Negotiation, ParsedOffer, Policy } from '@/lib/contracts';
+import type { LlmApi } from '@/lib/negotiation/llm-api';
 import { decide, type Decision, type NegotiationState } from './decide';
 import { scanBuyerMessage, type BlockedReason } from './dealguard';
 import { parseBuyerMessage } from './parse';

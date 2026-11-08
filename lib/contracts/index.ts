@@ -1,20 +1,18 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 export const CONTRACT_VERSION = 1;
 
-export type Cents = number; // integer, USD cents
-export type ISODate = string; // "2026-11-04T19:00:00Z"
-export type PhotoUrl = string;
+export const Cents = z.number().int().nonnegative();
+export const ISODate = z.string().datetime();
+export const PhotoUrl = z.string().min(1);
+export type Cents = z.infer<typeof Cents>;
+export type ISODate = z.infer<typeof ISODate>;
+export type PhotoUrl = z.infer<typeof PhotoUrl>;
 
-const cents = z.number().int().nonnegative();
-const isoDate = z.string();
-const photoUrl = z.string();
-
-export const ListingModeSchema = z.enum(['sell', 'rent', 'lend']);
-export type ListingMode = z.infer<typeof ListingModeSchema>;
-
-export const ConditionGradeSchema = z.enum(['new', 'like_new', 'good', 'fair', 'poor']);
-export type ConditionGrade = z.infer<typeof ConditionGradeSchema>;
+export const ListingMode = z.enum(["sell", "rent", "lend"]);
+export const ConditionGrade = z.enum(["new", "like_new", "good", "fair", "poor"]);
+export type ListingMode = z.infer<typeof ListingMode>;
+export type ConditionGrade = z.infer<typeof ConditionGrade>;
 
 export const ListingSchema = z.object({
   id: z.string(),
@@ -23,24 +21,25 @@ export const ListingSchema = z.object({
   title: z.string(),
   category: z.string(),
   description: z.string(),
-  conditionGrade: ConditionGradeSchema,
+  conditionGrade: ConditionGrade,
   defects: z.array(z.string()),
-  photos: z.array(photoUrl),
-  modes: z.array(ListingModeSchema),
-  salePriceCents: cents.optional(),
-  rentPerDayCents: cents.optional(),
-  depositCents: cents.optional(),
-  status: z.enum(['draft', 'active', 'reserved', 'sold', 'archived']),
-  createdAt: isoDate,
+  photos: z.array(PhotoUrl),
+  modes: z.array(ListingMode),
+  salePriceCents: Cents.optional(),
+  rentPerDayCents: Cents.optional(),
+  depositCents: Cents.optional(),
+  status: z.enum(["draft", "active", "reserved", "sold", "archived"]),
+  createdAt: ISODate,
 });
 export type Listing = z.infer<typeof ListingSchema>;
 
 // ---- Chandrani produces ----
+
 export const ListingDraftSchema = z.object({
   title: z.string(),
   category: z.string(),
-  brandModelGuess: z.string().optional(), // internal only, never shown in demo UI
-  conditionGrade: ConditionGradeSchema,
+  brandModelGuess: z.string().optional(),
+  conditionGrade: ConditionGrade,
   defects: z.array(z.string()),
   description: z.string(),
   missingInfo: z.array(z.string()),
@@ -49,12 +48,12 @@ export const ListingDraftSchema = z.object({
 export type ListingDraft = z.infer<typeof ListingDraftSchema>;
 
 export const PriceSuggestionSchema = z.object({
-  saleRangeCents: z.tuple([cents, cents]),
-  fastSaleCents: cents,
-  bestPriceCents: cents,
-  rentPerDayCents: cents,
-  depositCents: cents,
-  newPriceCents: cents.optional(),
+  saleRangeCents: z.tuple([Cents, Cents]),
+  fastSaleCents: Cents,
+  bestPriceCents: Cents,
+  rentPerDayCents: Cents,
+  depositCents: Cents,
+  newPriceCents: Cents.optional(),
   explanation: z.string(),
 });
 export type PriceSuggestion = z.infer<typeof PriceSuggestionSchema>;
@@ -65,19 +64,19 @@ export const WantSchema = z.object({
   text: z.string(),
   parsed: z.object({
     item: z.string(),
-    intent: z.enum(['buy', 'rent', 'borrow']),
-    budgetCents: cents.optional(),
-    window: z.object({ start: isoDate, end: isoDate }).optional(),
+    intent: z.enum(["buy", "rent", "borrow"]),
+    budgetCents: Cents.optional(),
+    window: z.object({ start: ISODate, end: ISODate }).optional(),
     needs: z.array(z.string()),
   }),
-  status: z.enum(['open', 'matched', 'closed']),
+  status: z.enum(["open", "matched", "closed"]),
 });
 export type Want = z.infer<typeof WantSchema>;
 
 export const MatchSchema = z.object({
   listingId: z.string(),
-  mode: ListingModeSchema,
-  priceCents: cents, // list price (sale) or per day (rent)
+  mode: ListingMode,
+  priceCents: Cents,
   score: z.number().min(0).max(1),
   reason: z.string(),
   available: z.boolean(),
@@ -90,41 +89,40 @@ export const InspectionResultSchema = z.object({
     z.object({
       description: z.string(),
       photoIndex: z.number().int().nonnegative(),
-      region: z
-        .object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() })
-        .optional(),
+      region: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }).optional(),
     }),
   ),
   missingParts: z.array(z.string()),
   confidence: z.number().min(0).max(1),
-  proposedDeductionCents: cents, // 0 if clean; always <= deposit
+  proposedDeductionCents: Cents,
   summary: z.string(),
 });
 export type InspectionResult = z.infer<typeof InspectionResultSchema>;
 
 // ---- Maithily produces ----
+
 export const PolicySchema = z.object({
   listingId: z.string(),
-  listPriceCents: cents,
-  floorCents: cents, // NEVER sent to any LLM
-  autoAcceptCents: cents, // NEVER sent to any LLM
-  mode: z.enum(['full_auto', 'ask_me']),
-  strategy: z.enum(['sell_fast', 'best_price', 'auto']),
-  deadline: isoDate.optional(),
+  listPriceCents: Cents,
+  floorCents: Cents, // NEVER sent to any LLM
+  autoAcceptCents: Cents, // NEVER sent to any LLM
+  mode: z.enum(["full_auto", "ask_me"]),
+  strategy: z.enum(["sell_fast", "best_price", "auto"]),
+  deadline: ISODate.optional(),
   maxRounds: z.number().int().positive().default(4),
-  tone: z.enum(['friendly', 'brief', 'firm']),
+  tone: z.enum(["friendly", "brief", "firm"]),
   extrasAllowed: z.array(z.string()),
 });
 export type Policy = z.infer<typeof PolicySchema>;
 
 // The ONLY policy shape any LLM may see.
-export const PolicyViewSchema = PolicySchema.omit({ floorCents: true, autoAcceptCents: true });
+export const PolicyViewSchema = PolicySchema.omit({ floorCents: true, autoAcceptCents: true }).strict();
 export type PolicyView = z.infer<typeof PolicyViewSchema>;
 
 export const ParsedOfferSchema = z.object({
-  offerCents: cents.nullable(),
+  offerCents: Cents.nullable(),
   conditions: z.array(z.string()),
-  intent: z.enum(['offer', 'counter', 'accept', 'question', 'other']),
+  intent: z.enum(["offer", "counter", "accept", "question", "other"]),
 });
 export type ParsedOffer = z.infer<typeof ParsedOfferSchema>;
 
@@ -132,12 +130,12 @@ export const NegotiationSchema = z.object({
   id: z.string(),
   listingId: z.string(),
   buyerId: z.string(),
-  kind: z.enum(['sale', 'rent']),
+  kind: z.enum(["sale", "rent"]),
   rentDays: z.number().int().positive().optional(),
   round: z.number().int().nonnegative(),
-  lastCounterCents: cents.optional(),
-  agreedCents: cents.optional(),
-  status: z.enum(['open', 'agreed', 'needs_seller', 'declined', 'expired']),
+  lastCounterCents: Cents.optional(),
+  agreedCents: Cents.optional(),
+  status: z.enum(["open", "agreed", "needs_seller", "declined", "expired"]),
   dealId: z.string().optional(),
 });
 export type Negotiation = z.infer<typeof NegotiationSchema>;
@@ -145,44 +143,41 @@ export type Negotiation = z.infer<typeof NegotiationSchema>;
 export const NegoMessageSchema = z.object({
   id: z.string(),
   negotiationId: z.string(),
-  from: z.enum(['buyer', 'agent', 'seller', 'system']),
+  from: z.enum(["buyer", "agent", "seller", "system"]),
   text: z.string(),
   parsedOffer: ParsedOfferSchema.optional(),
-  blockedReason: z
-    .enum(['injection', 'off_platform_payment', 'price_leak', 'scam_pattern'])
-    .optional(),
-  createdAt: isoDate,
+  blockedReason: z.enum(["injection", "off_platform_payment", "price_leak", "scam_pattern"]).optional(),
+  createdAt: ISODate,
 });
 export type NegoMessage = z.infer<typeof NegoMessageSchema>;
 
-export const DealTypeSchema = z.enum(['sale', 'rent', 'borrow']);
-export type DealType = z.infer<typeof DealTypeSchema>;
-
-export const DealStateSchema = z.enum([
-  'AGREED',
-  'AWAITING_PAYMENT',
-  'PAID', // sale captured
-  'HELD', // rent/borrow authorized
-  'OUT',
-  'RETURNED',
-  'SETTLED',
-  'VOIDED',
-  'CLAIMED',
-  'REFUNDED',
+export const DealType = z.enum(["sale", "rent", "borrow"]);
+export const DealState = z.enum([
+  "AGREED",
+  "AWAITING_PAYMENT",
+  "PAID",
+  "HELD",
+  "OUT",
+  "RETURNED",
+  "SETTLED",
+  "VOIDED",
+  "CLAIMED",
+  "REFUNDED",
 ]);
-export type DealState = z.infer<typeof DealStateSchema>;
+export type DealType = z.infer<typeof DealType>;
+export type DealState = z.infer<typeof DealState>;
 
 export const DealSchema = z.object({
   id: z.string(),
   listingId: z.string(),
   buyerId: z.string(),
   sellerId: z.string(),
-  type: DealTypeSchema,
-  amountCents: cents, // sale price, or total rent
-  depositCents: cents, // 0 for sale
-  start: isoDate.optional(),
-  end: isoDate.optional(),
-  state: DealStateSchema,
+  type: DealType,
+  amountCents: Cents,
+  depositCents: Cents,
+  start: ISODate.optional(),
+  end: ISODate.optional(),
+  state: DealState,
   paypal: z.object({
     orderId: z.string().optional(),
     authorizationId: z.string().optional(),
@@ -190,56 +185,14 @@ export const DealSchema = z.object({
     payoutBatchId: z.string().optional(),
   }),
   inspectionId: z.string().optional(),
-  timeline: z.array(
-    z.object({ state: DealStateSchema, at: isoDate, paypalRef: z.string().optional() }),
-  ),
+  timeline: z.array(z.object({ state: DealState, at: ISODate, paypalRef: z.string().optional() })),
 });
 export type Deal = z.infer<typeof DealSchema>;
 
-// ---- Function contracts (in-process; each has a mock) ----
-export type Msg = { role: 'user' | 'assistant'; content: string };
+// ---- LLM message shape shared by lib/llm callers ----
 
-/** Chandrani exports from `lib/agents`. */
-export interface AgentsApi {
-  draftListing(photos: PhotoUrl[], note: string): Promise<ListingDraft>;
-  suggestPrice(
-    draft: ListingDraft,
-    opts: { urgency: 'low' | 'high'; communityId: string },
-  ): Promise<PriceSuggestion>;
-  parseWant(text: string, userId: string): Promise<Want>;
-  findMatches(want: Want): Promise<Match[]>;
-  inspectCondition(
-    before: PhotoUrl[],
-    after: PhotoUrl[],
-    listing: Listing,
-  ): Promise<InspectionResult>;
-}
-
-/** Chandrani exports from `lib/llm`. */
-export interface LlmApi {
-  json<T>(
-    schema: z.ZodType<T>,
-    messages: Msg[],
-    opts?: { system?: string; maxTokens?: number },
-  ): Promise<T>;
-  vision<T>(schema: z.ZodType<T>, images: PhotoUrl[], prompt: string): Promise<T>;
-  text(messages: Msg[], opts?: { system?: string; maxTokens?: number }): Promise<string>;
-}
-
-/** Maithily exports from `lib/engine` + `lib/negotiation`. */
-export interface DealsApi {
-  createOrUpdatePolicy(p: Policy): Promise<Policy>;
-  getPolicyView(listingId: string): Promise<PolicyView>;
-  startNegotiation(
-    listingId: string,
-    buyerId: string,
-    kind: 'sale' | 'rent',
-    rentDays?: number,
-  ): Promise<Negotiation>;
-  handleBuyerMessage(
-    negotiationId: string,
-    text: string,
-  ): Promise<{ negotiation: Negotiation; messages: NegoMessage[] }>;
-  getDeal(dealId: string): Promise<Deal>;
-  listDeals(filter: { ownerId?: string; buyerId?: string; type?: DealType }): Promise<Deal[]>;
-}
+export const MsgSchema = z.object({
+  role: z.enum(["user", "assistant"]),
+  content: z.string(),
+});
+export type Msg = z.infer<typeof MsgSchema>;
