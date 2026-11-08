@@ -46,6 +46,9 @@ const cleanInspection: InspectFn = async () => ({
 
 const DAY_MS = 86_400_000;
 const NO_RETURN_GRACE_MS = DAY_MS; // the owner can claim a missing item 24 hours after the end date
+// An order the buyer has not approved expires on PayPal's side after a few hours. After this long we
+// stop handing it out and create a fresh one, so a buyer who comes back later is never stuck.
+const ORDER_TTL_MS = 2 * 3_600_000;
 
 export function createDealService(deps: DealServiceDeps) {
   const { store, paypal, now = () => new Date(), inspect = cleanInspection } = deps;
@@ -141,19 +144,26 @@ export function createDealService(deps: DealServiceDeps) {
       return withLock(dealId, async () => {
         const deal = await mustGet(dealId);
         assertBuyer(deal, userId);
-        if (deal.paypal.orderId) return { paypalOrderId: deal.paypal.orderId };
-        if (deal.state !== 'AGREED') throw new DealError(`cannot pay a deal in ${deal.state}`, 409);
+        const since = [...deal.timeline].reverse().find((t) => t.state === 'AWAITING_PAYMENT')?.at;
+        const stale = deal.state === 'AWAITING_PAYMENT' && !!since && now().getTime() - Date.parse(since) > ORDER_TTL_MS;
+        if (deal.paypal.orderId && !stale) return { paypalOrderId: deal.paypal.orderId };
+        if (deal.state !== 'AGREED' && !stale) throw new DealError(`cannot pay a deal in ${deal.state}`, 409);
 
         const terms = await store.getListingTerms(deal.listingId);
         const order = await paypal.createOrder({
-          requestId: requestId(deal.id, 'create-order'),
+          // Stable within a 2-hour window (a double click gets the same order), new after it.
+          requestId: requestId(deal.id, `create-order-${Math.floor(now().getTime() / ORDER_TTL_MS)}`),
           intent: deal.type === 'sale' ? 'CAPTURE' : 'AUTHORIZE',
           amountCents: deal.amountCents + deal.depositCents,
           payeeEmail: payeeMode === 'direct' ? terms?.sellerPayoutEmail : undefined,
           returnUrl,
           cancelUrl,
         });
-        const next = move({ ...deal, paypal: { ...deal.paypal, orderId: order.orderId } }, 'AWAITING_PAYMENT', order.orderId);
+        const withOrder = { ...deal, paypal: { ...deal.paypal, orderId: order.orderId } };
+        // First order: AGREED -> AWAITING_PAYMENT. A replacement order keeps the state and just records it.
+        const next = stale
+          ? { ...withOrder, timeline: [...deal.timeline, { state: deal.state, at: now().toISOString(), paypalRef: order.orderId }] }
+          : move(withOrder, 'AWAITING_PAYMENT', order.orderId);
         await store.saveDeal(next);
         return { paypalOrderId: order.orderId, approveUrl: order.approveUrl };
       });
@@ -350,6 +360,31 @@ export function createDealService(deps: DealServiceDeps) {
         };
         return payoutSeller(captured, total, captureId);
       });
+    },
+
+    /**
+     * A sale is captured before the seller is paid out. If the payout step failed (PayPal error, or
+     * the seller had no PayPal email yet), the deal sits in PAID. This finishes them; the payout
+     * request id is stable, so running it twice never pays twice.
+     */
+    async retryPendingPayouts(): Promise<{ checked: number; settled: number; failed: string[] }> {
+      const paid = await store.listDeals({ type: 'sale', states: ['PAID'] });
+      let settled = 0;
+      const failed: string[] = [];
+      for (const candidate of paid) {
+        try {
+          const done = await withLock(candidate.id, async () => {
+            const deal = await mustGet(candidate.id);
+            const captureId = deal.paypal.captureIds[0];
+            if (deal.state !== 'PAID' || !captureId) return deal;
+            return payoutSeller(deal, deal.amountCents, captureId);
+          });
+          if (done.state === 'SETTLED') settled += 1;
+        } catch (err) {
+          failed.push(`${candidate.id}: ${(err as Error).message}`);
+        }
+      }
+      return { checked: paid.length, settled, failed };
     },
 
     /**

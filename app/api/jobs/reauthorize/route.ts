@@ -10,8 +10,9 @@ function authorized(req: Request, secret: string): boolean {
 }
 
 /**
- * Scheduled job (see render.yaml): refreshes rental holds that have reached day 3, so a long
- * rental can still be captured on return. Needs `Authorization: Bearer $CRON_SECRET`; with no
+ * Scheduled job (see render.yaml): refreshes rental holds that have reached day 3 (so a long
+ * rental can still be captured on return) and finishes sale payouts that failed after the capture.
+ * Safe to run as often as you like. Needs `Authorization: Bearer $CRON_SECRET`; with no
  * CRON_SECRET configured the job is switched off.
  */
 export async function POST(req: Request) {
@@ -19,7 +20,9 @@ export async function POST(req: Request) {
     const secret = process.env.CRON_SECRET;
     if (!secret) return NextResponse.json({ error: 'job is not configured' }, { status: 503 });
     if (!authorized(req, secret)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-    return NextResponse.json(await (await getDealService()).reauthorizeDue());
+    const deals = await getDealService();
+    // Keep holds alive on long rentals, and finish any payout that failed after a capture.
+    return NextResponse.json({ reauthorize: await deals.reauthorizeDue(), payouts: await deals.retryPendingPayouts() });
   } catch (err) {
     return errorResponse(err);
   }
