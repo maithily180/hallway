@@ -40,6 +40,7 @@ export interface PayPalApi {
 }
 
 export class PayPalError extends Error {
+  override name = 'PayPalError';
   constructor(
     message: string,
     readonly status: number,

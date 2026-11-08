@@ -22,6 +22,7 @@ const GRAPHS: Record<DealType, Partial<Record<DealState, DealState[]>>> = {
 };
 
 export class InvalidTransitionError extends Error {
+  override name = 'InvalidTransitionError';
   constructor(type: DealType, from: DealState, to: DealState) {
     super(`Invalid ${type} transition ${from} -> ${to}`);
   }

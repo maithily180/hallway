@@ -10,12 +10,13 @@ export async function requireUserId(req: Request): Promise<string> {
   return user.id;
 }
 
+/** Matched by name: Next can load this code in more than one module graph, so instanceof can miss. */
 export function errorResponse(err: unknown) {
-  if (err instanceof NegotiationError) {
-    return NextResponse.json({ error: err.message }, { status: err.status });
+  if (err instanceof Error && err.name === 'NegotiationError') {
+    return NextResponse.json({ error: err.message }, { status: (err as Error & { status: number }).status });
   }
-  if (err instanceof ZodError) {
-    return NextResponse.json({ error: 'invalid request', issues: err.issues }, { status: 400 });
+  if (err instanceof Error && (err.name === 'ZodError' || err instanceof ZodError)) {
+    return NextResponse.json({ error: 'invalid request', issues: (err as ZodError).issues }, { status: 400 });
   }
   console.error(err);
   return NextResponse.json({ error: 'internal error' }, { status: 500 });
