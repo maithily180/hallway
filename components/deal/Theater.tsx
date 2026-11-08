@@ -31,7 +31,7 @@ export function Theater({ initial, viewerId }: { initial: TheaterData; viewerId:
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const endRef = useRef<HTMLDivElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
 
   const { negotiation, messages } = data;
   const id = negotiation.id;
@@ -51,7 +51,9 @@ export function Theater({ initial, viewerId }: { initial: TheaterData; viewerId:
   }, [refresh]);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Scroll the chat itself (scrollIntoView would also scroll the whole page on phones).
+    const el = scroller.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [messages.length]);
 
   async function post(path: string, body: unknown) {
@@ -99,7 +101,7 @@ export function Theater({ initial, viewerId }: { initial: TheaterData; viewerId:
           </p>
         </header>
 
-        <div className="flex-1 space-y-3 overflow-y-auto p-4" aria-live="polite">
+        <div ref={scroller} className="flex-1 space-y-3 overflow-y-auto p-4" aria-live="polite">
           {messages.length === 0 && <p className="text-sm text-muted">Make an offer to get started.</p>}
           {messages.map((m) => (
             <div key={m.id} className={m.from === 'buyer' ? 'flex justify-end' : 'flex justify-start'}>
@@ -120,7 +122,6 @@ export function Theater({ initial, viewerId }: { initial: TheaterData; viewerId:
               </div>
             </div>
           ))}
-          <div ref={endRef} />
         </div>
 
         <footer className="space-y-3 border-t border-border p-4">
