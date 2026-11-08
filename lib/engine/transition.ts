@@ -15,10 +15,13 @@ const RENT: Partial<Record<DealState, DealState[]>> = {
   CLAIMED: ['SETTLED'],
 };
 
+// A free loan with no deposit has nothing to pay or hold, so the borrower confirms it straight to HELD.
+const BORROW: Partial<Record<DealState, DealState[]>> = { ...RENT, AGREED: ['AWAITING_PAYMENT', 'HELD', 'VOIDED'] };
+
 const GRAPHS: Record<DealType, Partial<Record<DealState, DealState[]>>> = {
   sale: SALE,
   rent: RENT,
-  borrow: RENT,
+  borrow: BORROW,
 };
 
 export class InvalidTransitionError extends Error {

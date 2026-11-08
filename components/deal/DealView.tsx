@@ -51,6 +51,7 @@ export function DealView({ initial, viewerId }: { initial: Deal; viewerId: strin
   const isSeller = viewerId === deal.sellerId;
   const total = deal.amountCents + deal.depositCents;
   const loan = deal.type === 'borrow';
+  const noDeposit = loan && deal.depositCents === 0;
   // The owner can claim a missing item a day after the end date.
   const overdue = deal.end ? nowMs > Date.parse(deal.end) + 24 * 3_600_000 : false;
 
@@ -120,7 +121,9 @@ export function DealView({ initial, viewerId }: { initial: Deal; viewerId: strin
             </Chip>
           </div>
           <h1 className="text-4xl font-semibold tracking-tight">{loan ? 'Free' : usd(deal.amountCents)}</h1>
-          {loan ? (
+          {noDeposit ? (
+            <p className="text-muted">No deposit: there is nothing to pay or hold. Just bring it back in good order.</p>
+          ) : loan ? (
             <p className="text-muted">
               A <strong className="text-foreground">{usd(deal.depositCents)}</strong> deposit is held on a PayPal authorization while
               it is out, and released when it comes back in good order.
@@ -144,7 +147,19 @@ export function DealView({ initial, viewerId }: { initial: Deal; viewerId: strin
           </p>
         )}
 
-        {isBuyer && (deal.state === 'AGREED' || deal.state === 'AWAITING_PAYMENT') && (
+        {isBuyer && noDeposit && deal.state === 'AGREED' && (
+          <Card className="space-y-3">
+            <p className="text-sm">The owner isn&rsquo;t asking for a deposit, so there is nothing to pay. Confirm that you&rsquo;ll bring it back.</p>
+            <Button size="lg" className="w-full" disabled={busy} onClick={() => act('confirm')}>
+              Confirm the loan
+            </Button>
+            <Button variant="ghost" disabled={busy} onClick={() => act('cancel')}>
+              Cancel
+            </Button>
+          </Card>
+        )}
+
+        {isBuyer && !noDeposit && (deal.state === 'AGREED' || deal.state === 'AWAITING_PAYMENT') && (
           <Card className="space-y-3">
             <PayPalButton dealId={deal.id} type={deal.type} onDone={refresh} />
             <Button variant="ghost" disabled={busy} onClick={() => act('cancel')}>
@@ -154,7 +169,11 @@ export function DealView({ initial, viewerId }: { initial: Deal; viewerId: strin
         )}
 
         {isSeller && (deal.state === 'AGREED' || deal.state === 'AWAITING_PAYMENT') && (
-          <Card className="text-sm text-muted">Waiting for the buyer to pay with PayPal. Nothing is needed from you yet.</Card>
+          <Card className="text-sm text-muted">
+            {noDeposit
+              ? 'Waiting for the borrower to confirm. Nothing is needed from you yet.'
+              : 'Waiting for the buyer to pay with PayPal. Nothing is needed from you yet.'}
+          </Card>
         )}
 
         {isBuyer && deal.state === 'HELD' && (
@@ -227,8 +246,10 @@ export function DealView({ initial, viewerId }: { initial: Deal; viewerId: strin
           <Card className="space-y-3">
             <p className="text-sm font-medium">Settle the rental</p>
             <p className="text-sm text-muted">
-              {loan
-                ? 'Hallway releases the whole deposit hold. '
+              {noDeposit
+                ? 'Nothing was held, so there is nothing to capture or release. '
+                : loan
+                  ? 'Hallway releases the whole deposit hold. '
                 : `Hallway captures the rent (${usd(deal.amountCents)}) and PayPal releases the rest of the hold. `}
               If you deduct for damage, the {loan ? 'borrower' : 'renter'} has to agree to the exact amount first.
             </p>
@@ -251,7 +272,7 @@ export function DealView({ initial, viewerId }: { initial: Deal; viewerId: strin
               disabled={busy}
               onClick={() => act('settle', { deductionCents: Math.round(Number(deductionValue) * 100), ownerOk: true })}
             >
-              {Number(deductionValue) > 0 ? 'Propose this deduction' : loan ? 'Release the deposit' : 'Settle with no deduction'}
+              {Number(deductionValue) > 0 ? 'Propose this deduction' : noDeposit ? 'Mark as returned' : loan ? 'Release the deposit' : 'Settle with no deduction'}
             </Button>
           </Card>
         )}

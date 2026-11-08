@@ -91,9 +91,9 @@ export function createDealService(deps: DealServiceDeps) {
       const terms = await store.getListingTerms(n.listingId);
       if (!terms) throw new DealError('listing not found', 404);
 
-      // A rental agreed at $0 is a free loan: only the deposit is held, and it is released on return.
+      // A rental agreed at $0 is a free loan: only the deposit (if the owner asks for one) is held,
+      // and it is released on return.
       const loan = n.kind === 'rent' && n.agreedCents === 0;
-      if (loan && terms.depositCents <= 0) throw new DealError('a loan needs a deposit to hold', 409);
       const type: DealType = n.kind === 'sale' ? 'sale' : loan ? 'borrow' : 'rent';
       const days = n.kind === 'rent' ? (n.rentDays ?? 1) : 0;
       const start = now();
@@ -120,6 +120,21 @@ export function createDealService(deps: DealServiceDeps) {
       return deal;
     },
     listDeals: (filter: Parameters<DealStore['listDeals']>[0]) => store.listDeals(filter),
+
+    /**
+     * A free loan with no deposit has nothing to pay or hold: the borrower just confirms it.
+     * AGREED -> HELD, with no PayPal call at all.
+     */
+    confirmLoan(dealId: string, userId?: string): Promise<Deal> {
+      return withLock(dealId, async () => {
+        const deal = await mustGet(dealId);
+        assertBuyer(deal, userId);
+        if (deal.state === 'HELD') return deal; // repeat is a no-op
+        if (deal.type !== 'borrow' || deal.depositCents > 0) throw new DealError('this deal needs a payment', 409);
+        if (deal.state !== 'AGREED') throw new DealError(`cannot confirm a deal in ${deal.state}`, 409);
+        return store.saveDeal(move(deal, 'HELD'));
+      });
+    },
 
     /** Create the PayPal order for the buyer to approve. Sale captures; rent authorizes rent + deposit. */
     pay(dealId: string, userId?: string): Promise<{ paypalOrderId: string; approveUrl?: string }> {
@@ -180,6 +195,8 @@ export function createDealService(deps: DealServiceDeps) {
         } else if (deal.state === 'PAID' && deal.paypal.captureIds[0]) {
           const { refundId } = await paypal.refundCapture(deal.paypal.captureIds[0], undefined, requestId(deal.id, 'refund'));
           deal = move(deal, 'REFUNDED', refundId);
+        } else if (deal.state === 'HELD' && deal.type === 'borrow' && deal.depositCents === 0) {
+          deal = move(deal, 'VOIDED'); // nothing was held, so there is nothing to release
         } else if (deal.state === 'AGREED' || deal.state === 'AWAITING_PAYMENT') {
           deal = move(deal, 'VOIDED');
         } else if (deal.state === 'VOIDED' || deal.state === 'REFUNDED') {
@@ -344,6 +361,7 @@ export function createDealService(deps: DealServiceDeps) {
       let refreshed = 0;
       const failed: string[] = [];
       for (const deal of active) {
+        if (!deal.paypal.authorizationId) continue; // a loan with no deposit holds nothing
         const held = deal.timeline.find((t) => t.state === 'HELD');
         const days = held ? Math.floor((now().getTime() - Date.parse(held.at)) / DAY_MS) : 0;
         if (days < 3) continue;
@@ -393,7 +411,8 @@ export function createDealService(deps: DealServiceDeps) {
         if (deal.state !== 'RETURNED' && deal.state !== 'CLAIMED') {
           throw new DealError(`cannot settle a deal in ${deal.state}`, 409);
         }
-        if (!deal.paypal.authorizationId) throw new DealError('deal has no authorization', 409);
+        const nothingHeld = deal.type === 'borrow' && deal.depositCents === 0;
+        if (!deal.paypal.authorizationId && !nothingHeld) throw new DealError('deal has no authorization', 409);
         const { deductionCents } = input;
         if (!Number.isInteger(deductionCents) || deductionCents < 0 || deductionCents > deal.depositCents) {
           throw new DealError('deduction must be between 0 and the deposit', 400);
@@ -406,12 +425,15 @@ export function createDealService(deps: DealServiceDeps) {
 
         const owedCents = deal.amountCents + deductionCents;
         if (owedCents === 0) {
-          // A free loan returned clean: nothing is owed, so the whole deposit hold is released.
-          await paypal.voidAuthorization(deal.paypal.authorizationId, requestId(deal.id, 'void-return'));
+          // A free loan returned clean: nothing is owed, so the whole deposit hold (if any) is released.
+          if (deal.paypal.authorizationId) {
+            await paypal.voidAuthorization(deal.paypal.authorizationId, requestId(deal.id, 'void-return'));
+          }
           const record = await store.getInspection(deal.id);
           if (record) await store.saveInspection({ ...record, ownerDecision: 'ok', renterDecision: 'ok' });
           return store.saveDeal(move(deal, 'SETTLED', deal.paypal.authorizationId));
         }
+        if (!deal.paypal.authorizationId) throw new DealError('deal has no authorization', 409);
         await assertSellerPayable(deal);
         const { captureId } = await paypal.captureAuthorization({
           authorizationId: deal.paypal.authorizationId,

@@ -34,7 +34,9 @@ describe.skipIf(!enabled)('Prisma stores against Postgres', () => {
   async function agreedNegotiation(kind: 'sale' | 'rent'): Promise<Negotiation> {
     const { id } = await negotiation.startNegotiation(ids.listing, ids.leo, kind, kind === 'rent' ? 1 : undefined);
     let last;
-    for (const m of ['Would you take $15?', 'How about $26?', '$28 pls']) {
+    // The listing is for rent ($40/day) and for sale ($180): a sale runs on the scaled price and floor.
+    const script = kind === 'rent' ? ['Would you take $15?', 'How about $26?', '$28 pls'] : ['$160 pls'];
+    for (const m of script) {
       last = await negotiation.handleBuyerMessage(id, m);
     }
     return last!.negotiation;
@@ -275,5 +277,76 @@ describe.skipIf(!enabled)('seeded marketplace (hosted mode)', () => {
     const done = await deals.settle(dealId, { deductionCents: 0, ownerOk: true, renterOk: false }, 'maya');
     expect(done).toMatchObject({ state: 'SETTLED', sellerId: 'maya', buyerId: 'leo' });
     expect(done.paypal.payoutBatchId).toBeTruthy();
+  });
+});
+
+describe.skipIf(!enabled)('free loans and scaled prices against Postgres', () => {
+  it('runs a free loan through to a voided hold, and scales the price for the other mode', async () => {
+    const { db } = await import('@/lib/db');
+    const { prismaStore } = await import('@/lib/negotiation/prisma-store');
+    const { prismaDealStore } = await import('@/lib/engine/prisma-store');
+    const { createNegotiationService } = await import('@/lib/negotiation/service');
+    const { createDealService } = await import('@/lib/engine/deals');
+    const { createMockPayPal } = await import('@/lib/paypal/mock');
+    const { mockLlm } = await import('@/lib/negotiation/mock-llm');
+    const { signHandoverToken } = await import('@/lib/engine/handover-token');
+
+    const base = { communityId: 'demo-u', category: 'tools', description: 'd', conditionGrade: 'good', defects: [], photos: [] };
+    await db.listing.upsert({
+      where: { id: 'loan-ladder' },
+      update: {},
+      create: { id: 'loan-ladder', ownerId: 'priya', title: 'Ladder', modes: ['lend'], depositCents: 6000, ...base },
+    });
+    await db.listing.upsert({
+      where: { id: 'both-modes' },
+      update: {},
+      create: { id: 'both-modes', ownerId: 'maya', title: 'Drill', modes: ['rent', 'sell'], rentPerDayCents: 1000, salePriceCents: 8000, depositCents: 3000, ...base },
+    });
+
+    const mock = createMockPayPal();
+    const deals = createDealService({ store: prismaDealStore, paypal: mock, payeeMode: 'platform' });
+    const negotiation = createNegotiationService({
+      store: prismaStore,
+      llm: mockLlm,
+      onAgreed: async (n) => ({ dealId: (await deals.createFromNegotiation(n)).id }),
+    });
+
+    // free loan: starts agreed at $0, holds only the deposit, and a clean return voids the hold
+    const loan = await negotiation.startNegotiation('loan-ladder', 'leo', 'rent', 2);
+    expect(loan).toMatchObject({ status: 'agreed', agreedCents: 0 });
+    const dealId = loan.dealId!;
+    const { paypalOrderId } = await deals.pay(dealId, 'leo');
+    expect((await deals.approve(dealId, paypalOrderId, 'leo')).state).toBe('HELD');
+    await deals.handover(dealId, signHandoverToken(dealId), ['b.jpg'], 'priya');
+    await deals.returnItem(dealId, ['a.jpg'], 'leo');
+    const done = await deals.settle(dealId, { deductionCents: 0, ownerOk: true, renterOk: false }, 'priya');
+    expect(done).toMatchObject({ type: 'borrow', amountCents: 0, depositCents: 6000, state: 'SETTLED' });
+    const row = await db.deal.findUniqueOrThrow({ where: { id: dealId } });
+    expect((row.paypal as { captureIds: string[] }).captureIds).toEqual([]);
+
+    // a drill offered for rent and for sale: the sale runs on the $80 price, with the floor scaled to it
+    await db.policy.upsert({
+      where: { listingId: 'both-modes' },
+      update: {},
+      create: { listingId: 'both-modes', listPriceCents: 1000, floorCents: 700, autoAcceptCents: 900, mode: 'full_auto', strategy: 'best_price', maxRounds: 3, tone: 'friendly', extrasAllowed: [] },
+    });
+    const sale = await negotiation.startNegotiation('both-modes', 'leo', 'sale');
+    expect(await negotiation.getTheaterView(sale.id, 'maya')).toMatchObject({ listPriceCents: 8000, floorCents: 5600 });
+    expect((await negotiation.getTheaterView(sale.id, 'leo')).floorCents).toBeUndefined();
+  });
+
+  it('lists a user’s negotiations and finds deals by state', async () => {
+    const { prismaStore } = await import('@/lib/negotiation/prisma-store');
+    const { prismaDealStore } = await import('@/lib/engine/prisma-store');
+    expect((await prismaStore.listNegotiationsFor('leo')).length).toBeGreaterThan(0);
+    expect((await prismaStore.listNegotiationsFor('maya')).length).toBeGreaterThan(0); // as owner of listings
+    expect(await prismaStore.listNegotiationsFor('nobody')).toEqual([]);
+
+    const settled = await prismaDealStore.listDeals({ states: ['SETTLED'] });
+    expect(settled.length).toBeGreaterThan(0);
+    expect(settled.every((d) => d.state === 'SETTLED')).toBe(true);
+    expect(await prismaDealStore.listDeals({ states: ['HELD', 'OUT'] })).toEqual(
+      (await prismaDealStore.listDeals({})).filter((d) => d.state === 'HELD' || d.state === 'OUT'),
+    );
   });
 });

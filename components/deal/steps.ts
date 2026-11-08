@@ -9,6 +9,8 @@ export interface Step {
 
 const SALE: DealState[] = ['AGREED', 'AWAITING_PAYMENT', 'PAID', 'SETTLED'];
 const RENT: DealState[] = ['AGREED', 'AWAITING_PAYMENT', 'HELD', 'OUT', 'RETURNED', 'SETTLED'];
+/** A free loan with no deposit has nothing to pay: the borrower just confirms it. */
+const LOAN_NO_DEPOSIT: DealState[] = ['AGREED', 'HELD', 'OUT', 'RETURNED', 'SETTLED'];
 /** Where a deal that ended early branches off the happy path. */
 const ENDINGS: DealState[] = ['VOIDED', 'REFUNDED', 'CLAIMED'];
 
@@ -22,6 +24,14 @@ export function stepsFor(deal: Deal): Step[] {
           PAID: `${usd(deal.amountCents)} captured by PayPal.`,
           SETTLED: 'Seller paid out.',
         }
+      : deal.type === 'borrow' && deal.depositCents === 0
+        ? {
+            AGREED: 'Free loan agreed. No deposit, so nothing to pay.',
+            HELD: 'Confirmed by the borrower. Nothing is held; you just agree to bring it back.',
+            OUT: 'Handed over; "before" photos saved.',
+            RETURNED: 'Returned; photos compared.',
+            SETTLED: 'Returned in good order. Nothing was charged.',
+          }
       : deal.type === 'borrow'
         ? {
             AGREED: `Free loan agreed. A ${usd(deal.depositCents)} deposit is held while it is out.`,
@@ -40,7 +50,8 @@ export function stepsFor(deal: Deal): Step[] {
           SETTLED: `Rent of ${usd(deal.amountCents)} captured; the rest of the hold was released.`,
         };
 
-  const path = deal.type === 'sale' ? SALE : RENT;
+  const noDepositLoan = deal.type === 'borrow' && deal.depositCents === 0;
+  const path = deal.type === 'sale' ? SALE : noDepositLoan ? LOAN_NO_DEPOSIT : RENT;
   const title: Record<DealState, string> = {
     AGREED: 'Agreed',
     AWAITING_PAYMENT: 'Awaiting payment',
@@ -72,7 +83,7 @@ export function stepsFor(deal: Deal): Step[] {
 
   return visible.map((state) => ({
     state,
-    title: neverReturned && state === 'CLAIMED' ? 'Not returned' : title[state],
+    title: neverReturned && state === 'CLAIMED' ? 'Not returned' : noDepositLoan && state === 'HELD' ? 'Confirmed' : title[state],
     detail:
       neverReturned && state === 'CLAIMED'
         ? `Not returned: the owner claimed the whole ${usd(total)} hold.`
@@ -84,5 +95,5 @@ export function stepsFor(deal: Deal): Step[] {
 
 function order(deal: Deal, state: DealState): number {
   if (state === 'CLAIMED') return RENT.indexOf('RETURNED') + 0.5;
-  return (deal.type === 'sale' ? SALE : RENT).indexOf(state);
+  return (deal.type === 'sale' ? SALE : deal.type === 'borrow' && deal.depositCents === 0 ? LOAN_NO_DEPOSIT : RENT).indexOf(state);
 }

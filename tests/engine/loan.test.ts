@@ -99,9 +99,6 @@ describe('free loan (borrow)', () => {
     expect(order).toMatchObject({ intent: 'AUTHORIZE', amountCents: 6000 }); // the deposit only
   });
 
-  it('refuses a loan with no deposit', async () => {
-    await expect(svc.createFromNegotiation(negotiation('nodeposit', { agreedCents: 0 }))).rejects.toMatchObject({ status: 409 });
-  });
 
   it('a clean return voids the hold: nothing captured, nothing paid out, state SETTLED', async () => {
     const id = await drive('loan', 'RETURNED');
@@ -137,6 +134,75 @@ describe('free loan (borrow)', () => {
   it('a cancelled loan voids the hold', async () => {
     const id = await drive('loan', 'HELD');
     expect((await svc.cancel(id, 'leo')).state).toBe('VOIDED');
+  });
+});
+
+describe('free loan with no deposit', () => {
+  const drive0 = async (upTo: 'AGREED' | 'HELD' | 'OUT' | 'RETURNED') => {
+    const deal = await svc.createFromNegotiation(negotiation('nodeposit', { agreedCents: 0 }));
+    if (upTo === 'AGREED') return deal.id;
+    await svc.confirmLoan(deal.id, 'leo');
+    if (upTo === 'HELD') return deal.id;
+    await svc.handover(deal.id, signHandoverToken(deal.id), ['b.jpg'], 'sam');
+    if (upTo === 'OUT') return deal.id;
+    await svc.returnItem(deal.id, ['a.jpg'], 'leo');
+    return deal.id;
+  };
+
+  it('has nothing to pay or hold: confirm goes straight to HELD with no PayPal call at all', async () => {
+    const id = await drive0('HELD');
+    const deal = await svc.getDeal(id);
+    expect(deal).toMatchObject({ type: 'borrow', amountCents: 0, depositCents: 0, state: 'HELD' });
+    expect(deal.timeline.map((t) => t.state)).toEqual(['AGREED', 'HELD']);
+    expect(deal.paypal).toEqual({ captureIds: [] });
+    expect(calls).toEqual([]);
+  });
+
+  it('runs hand over, return and settle without ever touching PayPal', async () => {
+    const id = await drive0('RETURNED');
+    const done = await svc.settle(id, { deductionCents: 0, ownerOk: true, renterOk: false }, 'sam');
+    expect(done.state).toBe('SETTLED');
+    expect(calls).toEqual([]);
+    expect(done.paypal.payoutBatchId).toBeUndefined();
+  });
+
+  it('cannot carry a deduction, since there is no deposit to take it from', async () => {
+    const id = await drive0('RETURNED');
+    await expect(svc.settle(id, { deductionCents: 100, ownerOk: true, renterOk: false }, 'sam')).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('only the borrower confirms, only once it is agreed, and repeating is harmless', async () => {
+    const id = await drive0('AGREED');
+    await expect(svc.confirmLoan(id, 'sam')).rejects.toMatchObject({ status: 403 });
+    await expect(svc.confirmLoan(id, 'nobody')).rejects.toMatchObject({ status: 403 });
+    expect((await svc.confirmLoan(id, 'leo')).state).toBe('HELD');
+    expect((await svc.confirmLoan(id, 'leo')).state).toBe('HELD');
+  });
+
+  it('refuses to confirm anything that involves money', async () => {
+    const withDeposit = await svc.createFromNegotiation(negotiation('loan', { agreedCents: 0 }));
+    await expect(svc.confirmLoan(withDeposit.id, 'leo')).rejects.toMatchObject({ status: 409 });
+    const rental = await svc.createFromNegotiation(negotiation('rental'));
+    await expect(svc.confirmLoan(rental.id, 'leo')).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('can be cancelled once confirmed, with nothing to void', async () => {
+    const id = await drive0('HELD');
+    expect((await svc.cancel(id, 'leo')).state).toBe('VOIDED');
+    expect(calls).toEqual([]);
+  });
+
+  it('is skipped by the hold-refresh job and cannot be claimed as a no-show', async () => {
+    const id = await drive0('OUT');
+    clock = new Date(clock.getTime() + 40 * DAY);
+    expect(await svc.reauthorizeDue()).toEqual({ checked: 1, refreshed: 0, failed: [] });
+    await expect(svc.claimNoReturn(id, 'sam')).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('is not allowed for rentals: AGREED -> HELD exists only for loans', () => {
+    expect(canTransition('borrow', 'AGREED', 'HELD')).toBe(true);
+    expect(canTransition('rent', 'AGREED', 'HELD')).toBe(false);
+    expect(canTransition('sale', 'AGREED', 'HELD')).toBe(false);
   });
 });
 

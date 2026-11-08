@@ -118,9 +118,13 @@ describe('free loans', () => {
     expect(await service.startNegotiation('loanrent', 'leo', 'rent', 1)).toMatchObject({ status: 'open' });
   });
 
-  it('refuses a loan with no deposit to hold, or on something that is not lent', async () => {
+  it('a loan needs no deposit: the deposit hold is optional', async () => {
     const { service } = await setup();
-    await expect(service.startNegotiation('nodeposit', 'leo', 'rent', 1)).rejects.toMatchObject({ status: 409 });
+    expect(await service.startNegotiation('nodeposit', 'leo', 'rent', 1)).toMatchObject({ status: 'agreed', agreedCents: 0 });
+  });
+
+  it('refuses a loan on something that is not lent', async () => {
+    const { service } = await setup();
     await expect(service.startNegotiation('both', 'leo', 'rent', 1, { borrow: true })).rejects.toMatchObject({ status: 409 });
   });
 

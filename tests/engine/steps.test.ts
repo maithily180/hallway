@@ -46,6 +46,16 @@ describe('stepsFor', () => {
     ]);
   });
 
+  it('shows a deposit-free loan without a payment step, and a not-returned claim without a Returned step', () => {
+    const loan: Deal = { ...deal('borrow', ['AGREED', 'HELD']), amountCents: 0, depositCents: 0 };
+    expect(titles(loan)).toEqual(['AGREED', 'HELD', 'OUT', 'RETURNED', 'SETTLED']);
+    expect(stepsFor(loan).find((s) => s.state === 'HELD')?.title).toBe('Confirmed');
+
+    const missing = deal('rent', ['AGREED', 'AWAITING_PAYMENT', 'HELD', 'OUT', 'CLAIMED', 'SETTLED']);
+    expect(titles(missing)).toEqual(['AGREED', 'AWAITING_PAYMENT', 'HELD', 'OUT', 'CLAIMED', 'SETTLED']);
+    expect(stepsFor(missing).find((s) => s.state === 'CLAIMED')?.title).toBe('Not returned');
+  });
+
   it('puts a damage claim between RETURNED and SETTLED', () => {
     const states: DealState[] = ['AGREED', 'AWAITING_PAYMENT', 'HELD', 'OUT', 'RETURNED', 'CLAIMED'];
     expect(titles(deal('rent', states))).toEqual([

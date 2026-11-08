@@ -92,8 +92,8 @@ export function Theater({ initial, viewerId }: { initial: TheaterData; viewerId:
           </Chip>
           <h1 className="text-2xl font-semibold tracking-tight">{isBuyer ? 'You can borrow this' : 'A loan was requested'}</h1>
           <p className="text-sm text-muted">
-            No haggling needed. {isBuyer ? 'A refundable deposit is held on PayPal while you have it' : 'A deposit is held on PayPal while it is out'}
-            , and released when it comes back in good order.
+            No haggling needed. If the owner asks for a deposit, it is held on PayPal while {isBuyer ? 'you have' : 'it is out with'} it and
+            released when it comes back in good order.
           </p>
           {negotiation.dealId && (
             <Link className={buttonClass('primary', 'lg')} href={`/deals/${negotiation.dealId}`}>

@@ -32,7 +32,7 @@ function nextStep(deal: Deal, userId: string): string | undefined {
   switch (deal.state) {
     case 'AGREED':
     case 'AWAITING_PAYMENT':
-      return mine === 'buyer' ? 'Pay with PayPal' : undefined;
+      return mine === 'buyer' ? (deal.type === 'borrow' && deal.depositCents === 0 ? 'Confirm the loan' : 'Pay with PayPal') : undefined;
     case 'HELD':
       return mine === 'owner' ? 'Hand it over' : 'Show your pickup code';
     case 'OUT':
@@ -76,7 +76,7 @@ export default async function DealsPage() {
     const owner = user.id === deal.sellerId;
     const todo = nextStep(deal, user.id);
     const label = deal.type === 'sale' ? 'Purchase' : deal.type === 'borrow' ? 'Free loan' : 'Rental';
-    const amount = deal.type === 'borrow' ? `${usd(deal.depositCents)} deposit` : usd(deal.amountCents);
+    const amount = deal.type === 'borrow' ? (deal.depositCents ? `${usd(deal.depositCents)} deposit` : 'no deposit') : usd(deal.amountCents);
     return (
       <Link href={`/deals/${deal.id}`} className="block">
         <Card interactive className="flex flex-wrap items-center justify-between gap-3">

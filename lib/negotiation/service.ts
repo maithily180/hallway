@@ -113,7 +113,6 @@ export function createNegotiationService({ store, llm, now = () => new Date(), o
       const loan = kind === 'rent' && (opts.borrow === true || isLoanOnly(info));
       if (loan) {
         if (!info.modes.includes('lend')) throw new NegotiationError('this item is not offered as a free loan', 409);
-        if (info.depositCents <= 0) throw new NegotiationError('a loan needs a deposit to hold', 409);
         const n = await store.createNegotiation({
           listingId,
           buyerId,
