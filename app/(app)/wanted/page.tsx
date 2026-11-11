@@ -45,7 +45,7 @@ export default async function WantedPage() {
           {open.length === 0 ? (
             <EmptyState title="Every request found a match" />
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
               {open.map((w) => (
                 <article key={w.id} className="flex items-center gap-3 rounded-2xl border border-border bg-surface p-3 shadow-sm">
                   <ItemThumb category={w.parsed.item} className="size-14 shrink-0 rounded-xl" />
