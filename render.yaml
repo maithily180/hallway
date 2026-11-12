@@ -1,0 +1,75 @@
+# Render Blueprint: one web service + Postgres (with pgvector).
+# Deploy: Render dashboard -> New -> Blueprint -> pick this repo. Fill the `sync: false` secrets.
+databases:
+  - name: hallway-db
+    plan: free
+    databaseName: hallway
+    postgresMajorVersion: "16"
+
+services:
+  - type: web
+    name: hallway
+    runtime: node
+    plan: free
+    healthCheckPath: /api/health
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    # migrate, then seed the demo marketplace (idempotent), then serve
+    startCommand: pnpm db:deploy && pnpm seed && pnpm start
+    autoDeploy: true # redeploys on every push to main
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: hallway-db
+          property: connectionString
+      - key: PAYPAL_ENV
+        value: sandbox
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+      - key: PAYPAL_PLATFORM_EMAIL
+        sync: false
+      - key: NEXT_PUBLIC_PAYPAL_CLIENT_ID
+        sync: false
+      - key: HANDOVER_SECRET
+        generateValue: true
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: CRON_SECRET
+        generateValue: true # protects POST /api/jobs/reauthorize
+      - key: DEMO_PASSWORD
+        sync: false # shared password for the demo and judge logins
+      - key: APP_URL
+        sync: false # e.g. https://hallway.onrender.com
+      - key: PAYEE_MODE
+        value: platform # set to "direct" if the spike shows Plan A works
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: CAMPUS_EMAIL_DOMAIN
+        value: demo.edu
+      - key: MOCK_PAYPAL
+        value: "0"
+      - key: MOCK_LLM
+        value: "0"
+
+  # Optional: refreshes rental holds on day 3 so rentals longer than 3 days can still be captured.
+  # Render cron jobs have no free plan, so this is off by default. Any scheduler can do the same job:
+  #   curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/jobs/reauthorize"
+  # (a 1-day rental, as in the demo, never needs it). To enable, uncomment and set APP_URL.
+  #
+  # - type: cron
+  #   name: hallway-reauthorize
+  #   runtime: node
+  #   plan: starter
+  #   schedule: "0 */6 * * *"
+  #   buildCommand: echo "nothing to build"
+  #   startCommand: curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/jobs/reauthorize"
+  #   envVars:
+  #     - key: CRON_SECRET
+  #       fromService: { type: web, name: hallway, envVarKey: CRON_SECRET }
+  #     - key: APP_URL
+  #       sync: false

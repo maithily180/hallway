@@ -41,3 +41,9 @@ yarn-error.log*
 next-env.d.ts
 
 !.env.example
+
+# local assistant briefs (kept out of the repo)
+/CLAUDE.md
+/briefs/
+/hallway-briefs/CLAUDE.md
+/hallway-briefs/briefs/

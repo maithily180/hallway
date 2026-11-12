@@ -1,0 +1,35 @@
+name: db
+# Runs the Prisma stores, the seed and the hosted-mode flow against a real Postgres with pgvector.
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: hallway
+          POSTGRES_DB: hallway
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # A throwaway database: the tests wipe their tables first.
+      DATABASE_URL: postgresql://postgres:hallway@localhost:5432/hallway
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:deploy
+      - run: pnpm test
