@@ -9,6 +9,8 @@ const TIMEOUT_MS = 30_000;
 /** Overloaded, rate-limited, retired or timed out: worth trying the next model. */
 const RETRYABLE = new Set([404, 408, 429, 500, 502, 503, 504]);
 const DEFAULT_MAX_TOKENS = 8000;
+/** Hidden reasoning counts against the limit, so a small cap cuts replies off mid-sentence. */
+const MIN_MAX_TOKENS = 1024;
 
 type Part = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
 type ChatMsg = { role: "system" | "user" | "assistant"; content: string | Part[] };
@@ -20,7 +22,8 @@ async function chatOnce(model: string, messages: ChatMsg[], opts: CallOpts, json
     headers: { "content-type": "application/json", authorization: `Bearer ${process.env.LLM_API_KEY}` },
     body: JSON.stringify({
       model,
-      max_tokens: opts.maxTokens ?? DEFAULT_MAX_TOKENS,
+      max_tokens: Math.max(opts.maxTokens ?? DEFAULT_MAX_TOKENS, MIN_MAX_TOKENS),
+      reasoning_effort: process.env.LLM_REASONING_EFFORT || "low",
       messages,
       ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
     }),
