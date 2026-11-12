@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Listing } from "@/lib/contracts";
+import { createPrismaListingStore } from "@/lib/negotiation/db-listings";
 import { DEMO_COMMUNITY, DEMO_LISTINGS, DEMO_USERS } from "@/seed/demo";
 
 export type NewListing = Omit<Listing, "id" | "createdAt">;
@@ -31,7 +32,8 @@ export function createMemoryListingStore(seed: Listing[] = DEMO_LISTINGS): Listi
 const g = globalThis as unknown as { hallwayListings?: ListingStore };
 
 export function getListingStore(): ListingStore {
-  return (g.hallwayListings ??= createMemoryListingStore());
+  // With a database the schema is on main: listings live in Postgres (see lib/negotiation/db-listings.ts).
+  return (g.hallwayListings ??= process.env.DATABASE_URL ? createPrismaListingStore() : createMemoryListingStore());
 }
 
 export const DEFAULT_COMMUNITY_ID = DEMO_COMMUNITY.id;

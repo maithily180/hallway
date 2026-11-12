@@ -12,3 +12,15 @@ One line per merged task: date · who · what
 - 2026-11-07 (C): Design pass: refined tokens (soft accent, surface-2, shadows, focus rings), Button sizes, Icon set, category ItemThumb art, ListingCard, Stat, Logo. Sticky header with desktop nav and mobile tabs; redesigned Home (pill search, On campus now grid, Most wanted bars), Matches (thumbs, match %, checklist reasons, sticky advisor), listing detail, Wanted, My Stuff (stats), Login (split panel) and a step bar on Sell.
 - 2026-11-08 (C): Owner alerts: My Stuff tab shows a count of open campus requests your listings could fill (header and phone tabs). Wanted board uses one column beside the ranking on desktop; Sell photo picker gets a camera tile.
 - 2026-11-12 (C): NOTES/submission.md (checklist, Listings & Intelligence text for DEVPOST.md, video shot list) and a 3:2 Devpost thumbnail in NOTES/devpost/.
+- 2026-10-29 (M): Scaffold, contracts v1, Prisma schema v1, deal state machine, PayPal client + mock, spike script
+- 2026-10-29 (M): `decide()` negotiation core with demo-script and floor-invariant tests
+- 2026-10-30 (M): Deal service (pay/approve/cancel/payout), webhook handler, deal + webhook routes, negotiation->deal hook
+- 2026-10-30 (M): Rental handover (QR), return + Inspector hook, settle with final_capture, reauthorize, and their routes
+- 2026-10-30 (M): Deal Timeline page /deals/[id] (buyer QR, owner handover, return, settle), PayPal button (real SDK + mock)
+- 2026-10-30 (M): Negotiation Theater /negotiate/[id]: chat, live price ladder (owner-only locked floor), blocked pill, seller accept/decline
+- 2026-10-30 (M): 50-attack injection suite (150 runs); guard now catches spelled-out and cents amounts; model parse failure = no offer
+- 2026-10-30 (M): Initial Prisma migration, Render blueprint, /api/health, README
+- 2026-10-30 (M): DB integration tests (Prisma stores vs real Postgres + pgvector); migration verified
+- 2026-11-08 (M): Merged main into m/spike (adopted C's scaffold, contracts v1 and lib/llm unchanged). All my routes and pages now use the session cookie (x-user-id removed); only the buyer/owner can read or act on a negotiation or deal; settle takes each side's consent from who is calling. Listings are read from the app's listing store (hero id hero-projector). Inspector wired to inspectCondition. Real photo upload on handover/return. Initial + inspection-deduction migrations.
+- 2026-11-08 (M): Real sandbox verified through lib/paypal/client.ts (partial capture + final_capture releases the deposit, idempotent retries, void, refund, Payouts); Plan B decided. Hosted mode: Postgres listing store, idempotent seed, seed in Render start command.
+- 2026-11-08 (M): Free loans (deposit optional), per-mode pricing, deals page, never-returned claim, hold-refresh and payout-retry job, stale-order refresh, 40-message cap, 10-click concurrency tests, CI database job.
