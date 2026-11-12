@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WantSchema } from "@/lib/contracts";
 import { pickBackend } from "@/lib/llm";
 import { openAiCompatBackend } from "@/lib/llm/openai-compat";
@@ -13,7 +13,11 @@ describe("pickBackend", () => {
 });
 
 describe("openAiCompatBackend", () => {
-  afterEach(() => vi.unstubAllGlobals());
+  beforeEach(() => vi.stubEnv("LLM_API_KEY", "test-key"));
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
 
   it("sends the schema and parses fenced JSON", async () => {
     const fetchMock = vi.fn().mockResolvedValue(

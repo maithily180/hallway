@@ -12,7 +12,7 @@ export type { CallOpts, Msg } from "./types";
 /** MOCK_LLM=1 → fixtures; LLM_API_KEY → OpenAI-compatible (Gemini free tier by default); else Anthropic. */
 export function pickBackend(env: Record<string, string | undefined> = process.env): "mock" | "openai" | "anthropic" {
   if (env.MOCK_LLM === "1") return "mock";
-  if (env.LLM_API_KEY) return "openai";
+  if (env.LLM_API_KEY || env.LLM_API_KEYS || env.LLM_API_KEY_2) return "openai";
   if (env.ANTHROPIC_API_KEY) return "anthropic";
   return "mock";
 }
