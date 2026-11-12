@@ -29,7 +29,7 @@ Hallway is an AI agent that runs the whole deal for things your campus already o
 
 **Proof.** 50 attack prompts (reveal the minimum, ignore instructions, fake seller approval, "I already paid", role-play, obfuscation, base64, another language) run through the whole pipeline against a deliberately hostile stand-in model, in three negotiation states: the floor holds in all 150 runs. The PayPal client is also tested against the real sandbox: capturing $28 of a $178 authorization with `final_capture` completes and a second capture is refused (the deposit is released), retries with the same request id return the same capture, and void, refund and Payouts work.
 
-**Stack.** Next.js (App Router, TypeScript strict, Tailwind), Postgres + pgvector with Prisma, Anthropic Claude (vision and tool calling) behind one client, Vitest. Bryntum Scheduler for the owner's rental calendar. Hosted on Render.
+**Stack.** Next.js (App Router, TypeScript strict, Tailwind), Postgres + pgvector with Prisma, a vision-capable LLM (free Gemini tier by default) behind one client, Vitest. Bryntum Scheduler for the owner's rental calendar. Hosted on Render.
 
 ## Challenges
 
@@ -48,7 +48,7 @@ Move-out mode payouts in one Payouts batch, a buyer agent that negotiates for th
 
 ## Built with
 
-PayPal (Orders, Payments, Payouts, Webhooks, JS SDK, sandbox), Anthropic Claude, Next.js, TypeScript, Tailwind CSS, PostgreSQL, pgvector, Prisma, Vitest, Bryntum Scheduler, Render.
+PayPal (Orders, Payments, Payouts, Webhooks, JS SDK, sandbox), Gemini, Next.js, TypeScript, Tailwind CSS, PostgreSQL, pgvector, Prisma, Vitest, Bryntum Scheduler, Render.
 
 ## Statement
 

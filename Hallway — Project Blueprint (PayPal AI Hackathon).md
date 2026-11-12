@@ -97,7 +97,7 @@ The left side is what users feel and what the AI does; the right side is what ma
 | **Demand scout** | Wanted posts + search logs | "7 people looked for a drill this month; rent yours at $5/day" | Aggregates only; never reveals who searched |
 | **Deal guard** | Every chat message | Flags scam patterns (pay outside the app, overpay-and-refund, urgency) | Warns and blocks off-platform payment requests; never auto-bans |
 
-**Models:** one vision-capable LLM with tool calling for all agents (Claude or similar), plus a small embedding model for semantic search over listings (pgvector).
+**Models:** one vision-capable LLM with tool calling for all agents, plus a small embedding model for semantic search over listings (pgvector).
 
 **Tools the agents may call:** `search_listings`, `estimate_price`, `get_policy_view` (never the raw floor), `propose_offer`, `propose_accept`, `book_slot`, `compare_condition`, `flag_message`. Only the engine can call `create_order`, `authorize`, `capture`, `void`, `refund`, `payout`.
 
@@ -179,7 +179,7 @@ The agents can read, search and price, but every money action passes through the
 | Layer | Choice | Why |
 | --- | --- | --- |
 | Frontend + API | Next.js (App Router, TypeScript), Tailwind | One repo, server routes for webhooks |
-| AI | One vision LLM with tool calling (Claude or similar), via Vercel AI SDK | The Agent Toolkit ships an AI SDK adapter |
+| AI | One vision LLM with tool calling, via Vercel AI SDK | The Agent Toolkit ships an AI SDK adapter |
 | PayPal | JavaScript SDK button, REST for authorizations and Payouts, `@paypal/agent-toolkit` in sandbox mode | Real calls, clear separation |
 | Data | Postgres + pgvector (Render Postgres), Prisma | Semantic search over listings |
 | Photos | S3-compatible storage (Cloudflare R2 or Supabase Storage) | Before/after evidence |
@@ -292,7 +292,7 @@ If you are a team, split by layer: one person on the deal engine + PayPal, one o
 
 &#91;embedded content: Team plan · 2 lanes, 4 checkpoints\]
 
-Every box is a set of tasks in that person's Claude brief; the diamonds are the evenings both branches must run together on the hosted build.
+Every box is a set of tasks in that person's brief; the diamonds are the evenings both branches must run together on the hosted build.
 
 |  | Maithily: Money & Deals | Chandrani: Listings & Intelligence |
 | --- | --- | --- |
@@ -308,7 +308,7 @@ Every box is a set of tasks in that person's Claude brief; the diamonds are the 
 - **Mocks on Day 2:** `MOCK_PAYPAL` and `MOCK_LLM` let each side build against the other's module before it exists.
 - **Daily merge at 10 PM IST,** small PRs, CI on every PR, no repo-wide formatting.
 
-**Claude briefs (drop these files into the repo root):** `CLAUDE.md` (the whole project), `CONTRACTS.md` (the shared interfaces), `briefs/maithily.md` and `briefs/chandrani.md` (each person's owned paths, day plan, hand-offs and prompt starters), plus a `NOTES/` folder for requests, decisions and the changelog.
+**Project briefs (kept locally, not in the repo):** a project overview, `CONTRACTS.md` (the shared interfaces), `briefs/maithily.md` and `briefs/chandrani.md` (each person's owned paths, day plan, hand-offs and prompt starters), plus a `NOTES/` folder for requests, decisions and the changelog.
 
 ## Demo video script (2:50)
 
