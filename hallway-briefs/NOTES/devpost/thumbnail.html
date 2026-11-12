@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1500px; height: 1000px; }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: #f8f5f0; color: #1d1a16; overflow: hidden; position: relative;
+    -webkit-font-smoothing: antialiased;
+  }
+  .glow { position: absolute; width: 900px; height: 900px; right: -260px; top: -320px; border-radius: 50%;
+    background: radial-gradient(circle, #e2572b40, transparent 65%); }
+  .wrap { position: absolute; inset: 0; padding: 96px 104px; display: grid; grid-template-columns: 1fr 560px; gap: 72px; align-items: center; }
+  .logo { display: flex; align-items: center; gap: 18px; font-weight: 650; font-size: 44px; letter-spacing: -0.02em; }
+  .mark { width: 72px; height: 72px; border-radius: 20px; background: #e2572b; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 18px -6px #c8461d99; }
+  h1 { font-size: 92px; line-height: 1.02; letter-spacing: -0.035em; font-weight: 700; margin-top: 64px; }
+  h1 em { font-style: normal; color: #e2572b; }
+  p.sub { margin-top: 32px; font-size: 32px; line-height: 1.4; color: #6f665b; max-width: 680px; }
+  .pills { display: flex; gap: 14px; margin-top: 44px; flex-wrap: wrap; }
+  .pill { font-size: 24px; padding: 10px 22px; border-radius: 999px; background: #fff; border: 1.5px solid #e6dfd3; color: #1d1a16; }
+  .card { background: #fff; border: 1.5px solid #e6dfd3; border-radius: 32px; padding: 32px; box-shadow: 0 30px 60px -20px #1d1a1633; }
+  .ask { font-size: 26px; color: #6f665b; padding: 18px 24px; border-radius: 999px; background: #f2ede5; }
+  .ask b { color: #1d1a16; font-weight: 600; }
+  .item { display: flex; gap: 22px; margin-top: 26px; align-items: center; }
+  .thumb { width: 128px; height: 128px; border-radius: 22px; background: #fde7dc; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .title { font-size: 28px; font-weight: 600; }
+  .muted { font-size: 22px; color: #6f665b; margin-top: 6px; }
+  .chip { display: inline-block; font-size: 19px; font-weight: 600; padding: 5px 14px; border-radius: 999px; background: #e3f3ea; color: #23764a; margin-bottom: 10px; }
+  .ladder { margin-top: 28px; border-top: 1.5px solid #e6dfd3; padding-top: 24px; display: flex; flex-direction: column; gap: 14px; }
+  .row { display: flex; justify-content: space-between; font-size: 24px; }
+  .row span:last-child { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .deal { margin-top: 26px; border-radius: 20px; background: #e2572b; color: #fff; padding: 22px 26px; display: flex; justify-content: space-between; align-items: center; font-size: 26px; font-weight: 600; }
+  .deal small { display: block; font-size: 19px; font-weight: 500; opacity: .85; margin-top: 4px; }
+</style>
+</head>
+<body>
+  <div class="glow"></div>
+  <div class="wrap">
+    <div>
+      <div class="logo">
+        <span class="mark">
+          <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16 M4 21h16 M14 12h.01"/></svg>
+        </span>
+        Hallway
+      </div>
+      <h1>Your campus already owns it. <em>Hallway does the deal.</em></h1>
+      <p class="sub">An AI agent that lists, prices, matches, negotiates and settles rentals between students, with deposits held safely.</p>
+      <div class="pills">
+        <span class="pill">Snap to list</span>
+        <span class="pill">Agent negotiates</span>
+        <span class="pill">Photo-checked returns</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ask">“<b>A projector tomorrow night under $35</b>”</div>
+      <div class="item">
+        <div class="thumb">
+          <svg viewBox="0 0 24 24" width="72" height="72" fill="none" stroke="#c8461d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h18v9H3z M7 17v2 M17 17v2 M15 12.5a2.5 2.5 0 1 0 0-.01 M6 11h4"/></svg>
+        </div>
+        <div>
+          <span class="chip">Best match · 94%</span>
+          <div class="title">Portable projector with HDMI cable</div>
+          <div class="muted">from Maya · good condition</div>
+        </div>
+      </div>
+      <div class="ladder">
+        <div class="row"><span class="muted" style="margin:0">Leo offers</span><span>$15</span></div>
+        <div class="row"><span class="muted" style="margin:0">Agent counters</span><span>$32</span></div>
+        <div class="row"><span class="muted" style="margin:0">Agreed</span><span>$28</span></div>
+      </div>
+      <div class="deal">
+        <span>$28 rent + $150 deposit<small>Deposit released when it comes back</small></span>
+        <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3Z M9 12l2 2 4-4"/></svg>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
