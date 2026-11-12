@@ -19,6 +19,7 @@ export interface NegotiationStore {
     /** A free loan starts already agreed, at $0. */
     status?: Negotiation['status'];
     agreedCents?: number;
+    dealId?: string;
   }): Promise<Negotiation>;
   getNegotiation(id: string): Promise<Negotiation | null>;
   updateNegotiation(

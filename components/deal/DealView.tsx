@@ -81,8 +81,13 @@ export function DealView({ initial, viewerId }: { initial: Deal; viewerId: strin
   useEffect(() => {
     if (isBuyer && deal.state === 'HELD') {
       fetch(`/api/deals/${deal.id}/handover`)
-        .then((r) => r.json())
-        .then((j) => setQrToken(j.qrToken));
+        .then(async (r) => {
+          const j = await r.json();
+          if (!r.ok) throw new Error(j.error ?? 'request failed');
+          setQrToken(j.qrToken);
+        })
+        // Never fail silently: without the code the owner cannot hand it over.
+        .catch(() => setError('Could not load your pickup code. Refresh the page to try again.'));
     }
   }, [isBuyer, deal.state, deal.id]);
 

@@ -114,8 +114,10 @@ curl -b leo.jar -X POST http://localhost:3000/api/negotiations -H 'Content-Type:
 5. Run the opt-in sandbox tests, which drive `lib/paypal/client.ts` against the real sandbox (partial capture with `final_capture`, idempotent retries, void, refund, Payouts):
 
    ```bash
-   PAYPAL_SANDBOX_TESTS=1 node --env-file=.env node_modules/vitest/vitest.mjs run tests/integration/paypal-sandbox.test.ts
+   PAYPAL_SANDBOX_TESTS=1 node --env-file=.env node_modules/vitest/vitest.mjs run tests/integration/paypal-sandbox.test.ts tests/integration/paypal-engine.test.ts
    ```
+
+   The second file runs the whole deal engine on the real sandbox (clean return, damage, never returned, free loan, cancel, sale, refund, a double-click) and then asks PayPal itself what was captured, voided or paid out. The buyer pays with PayPal's published sandbox test card instead of the login popup.
 
 ### Commands
 

@@ -67,10 +67,15 @@ export function createNegotiationService({ store, llm, now = () => new Date(), o
     return effectivePolicy(policy, info, n.kind);
   }
 
-  async function agree(n: Negotiation): Promise<Negotiation> {
-    if (!onAgreed) return n;
-    const deal = await onAgreed(n);
-    return deal ? store.updateNegotiation(n.id, { dealId: deal.dealId }) : n;
+  /**
+   * The deal is created BEFORE the negotiation is marked agreed, and the status and the dealId are
+   * written together. Otherwise there is a window where the negotiation says "agreed" with no deal
+   * (the page shows a deal but no way to pay), and a failure to create the deal would leave it stuck
+   * that way for good. If the deal cannot be created, the negotiation stays open.
+   */
+  async function dealFor(agreed: Negotiation): Promise<string | undefined> {
+    const deal = onAgreed ? await onAgreed(agreed) : undefined;
+    return deal ? deal.dealId : undefined;
   }
 
   return {
@@ -116,15 +121,16 @@ export function createNegotiationService({ store, llm, now = () => new Date(), o
       const loan = kind === 'rent' && (opts.borrow === true || isLoanOnly(info));
       if (loan) {
         if (!info.modes.includes('lend')) throw new NegotiationError('this item is not offered as a free loan', 409);
-        const n = await store.createNegotiation({
+        const agreed: Negotiation = { id: 'pending', listingId, buyerId, kind: 'rent', rentDays: days, round: 0, status: 'agreed', agreedCents: 0 };
+        return store.createNegotiation({
           listingId,
           buyerId,
           kind: 'rent',
           rentDays: days,
           status: 'agreed',
           agreedCents: 0,
+          dealId: await dealFor(agreed),
         });
-        return agree(n);
       }
 
       if (kind === 'sale' && !info.modes.includes('sell')) throw new NegotiationError('this item is not for sale', 409);
@@ -215,11 +221,12 @@ export function createNegotiationService({ store, llm, now = () => new Date(), o
           : 'The seller declined this offer.';
       const note = await store.addMessage({ negotiationId, from: 'seller', text });
 
-      const updated = await store.updateNegotiation(
-        negotiationId,
-        decision === 'accept' ? { status: 'agreed', agreedCents: offer } : { status: 'declined' },
-      );
-      return { negotiation: decision === 'accept' ? await agree(updated) : updated, messages: [note] };
+      if (decision === 'decline') {
+        return { negotiation: await store.updateNegotiation(negotiationId, { status: 'declined' }), messages: [note] };
+      }
+      const dealId = await dealFor({ ...negotiation, status: 'agreed', agreedCents: offer });
+      const updated = await store.updateNegotiation(negotiationId, { status: 'agreed', agreedCents: offer, dealId });
+      return { negotiation: updated, messages: [note] };
     },
 
     async handleBuyerMessage(
@@ -261,17 +268,31 @@ export function createNegotiationService({ store, llm, now = () => new Date(), o
       });
       const agentMsg = await store.addMessage({ negotiationId, from: 'agent', text: result.reply });
 
-      const updated = await store.updateNegotiation(negotiationId, {
-        round: result.nextState.round,
-        lastCounterCents: result.nextState.lastCounterCents,
-        agreedCents: result.agreedCents,
-        status: result.status,
-      });
+      const progress = { round: result.nextState.round, lastCounterCents: result.nextState.lastCounterCents };
+      if (result.status !== 'agreed') {
+        const updated = await store.updateNegotiation(negotiationId, {
+          ...progress,
+          agreedCents: result.agreedCents,
+          status: result.status,
+        });
+        return { negotiation: updated, messages: [buyerMsg, agentMsg] };
+      }
 
-      return {
-        negotiation: result.status === 'agreed' ? await agree(updated) : updated,
-        messages: [buyerMsg, agentMsg],
-      };
+      let dealId: string | undefined;
+      try {
+        dealId = await dealFor({ ...negotiation, ...progress, status: 'agreed', agreedCents: result.agreedCents });
+      } catch (err) {
+        // No deal, so no agreement: keep the round we just played and leave the negotiation open.
+        await store.updateNegotiation(negotiationId, progress);
+        throw err;
+      }
+      const updated = await store.updateNegotiation(negotiationId, {
+        ...progress,
+        agreedCents: result.agreedCents,
+        status: 'agreed',
+        dealId,
+      });
+      return { negotiation: updated, messages: [buyerMsg, agentMsg] };
     },
   };
 }
