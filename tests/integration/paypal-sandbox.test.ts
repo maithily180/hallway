@@ -104,6 +104,31 @@ describe.skipIf(!enabled)('real PayPal sandbox through lib/paypal/client.ts', { 
     expect(payoutBatchId).toBeTruthy();
   });
 
+  it('never accepts a forged webhook: PayPal itself rejects an unsigned event', async () => {
+    const { realPayPal } = await import('@/lib/paypal/client');
+    const previous = process.env.PAYPAL_WEBHOOK_ID;
+    process.env.PAYPAL_WEBHOOK_ID = 'FORGED-WEBHOOK-ID';
+    try {
+      const forged = JSON.stringify({ id: 'WH-FORGED', event_type: 'PAYMENT.CAPTURE.COMPLETED', resource: { id: 'CAP-FORGED' } });
+      const headers = {
+        'paypal-auth-algo': 'SHA256withRSA',
+        'paypal-cert-url': 'https://api.sandbox.paypal.com/v1/notifications/certs/CERT-FORGED',
+        'paypal-transmission-id': 'forged-id',
+        'paypal-transmission-sig': 'Zm9yZ2Vk',
+        'paypal-transmission-time': new Date().toISOString(),
+      };
+      // Either PayPal says "not verified" or it refuses the request outright. Never "verified".
+      const verdict = await realPayPal.verifyWebhook(headers, forged).then(
+        (ok) => ok,
+        () => false,
+      );
+      expect(verdict).toBe(false);
+    } finally {
+      if (previous === undefined) delete process.env.PAYPAL_WEBHOOK_ID;
+      else process.env.PAYPAL_WEBHOOK_ID = previous;
+    }
+  });
+
   it('refuses an amount that is not whole cents, before any network call', async () => {
     const { realPayPal } = await import('@/lib/paypal/client');
     await expect(
