@@ -3,26 +3,48 @@ import type { CallOpts, LlmBackend, Msg, PhotoUrl } from "./types";
 
 /** Any OpenAI-compatible chat endpoint; defaults to Gemini's free tier. */
 const BASE_URL = () => (process.env.LLM_BASE_URL || "https://generativelanguage.googleapis.com/v1beta/openai").replace(/\/$/, "");
-const MODEL = () => process.env.LLM_MODEL || "gemini-2.5-flash";
+const FALLBACK_MODELS = ["gemini-3.5-flash", "gemini-3.5-flash-lite"];
+const MODELS = () => [...new Set([process.env.LLM_MODEL, ...FALLBACK_MODELS].filter((m): m is string => !!m))];
+const TIMEOUT_MS = 30_000;
+/** Overloaded, rate-limited, retired or timed out: worth trying the next model. */
+const RETRYABLE = new Set([404, 408, 429, 500, 502, 503, 504]);
 const DEFAULT_MAX_TOKENS = 8000;
 
 type Part = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
 type ChatMsg = { role: "system" | "user" | "assistant"; content: string | Part[] };
 
-async function chat(messages: ChatMsg[], opts: CallOpts, jsonMode: boolean): Promise<string> {
-  const res = await fetch(`${BASE_URL()}/chat/completions`, {
+async function chatOnce(model: string, messages: ChatMsg[], opts: CallOpts, jsonMode: boolean): Promise<Response> {
+  return fetch(`${BASE_URL()}/chat/completions`, {
     method: "POST",
+    signal: AbortSignal.timeout(TIMEOUT_MS),
     headers: { "content-type": "application/json", authorization: `Bearer ${process.env.LLM_API_KEY}` },
     body: JSON.stringify({
-      model: MODEL(),
+      model,
       max_tokens: opts.maxTokens ?? DEFAULT_MAX_TOKENS,
       messages,
       ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
     }),
   });
-  if (!res.ok) throw new Error(`LLM request failed: ${res.status} ${(await res.text()).slice(0, 300)}`);
-  const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-  return data.choices?.[0]?.message?.content ?? "";
+}
+
+async function chat(messages: ChatMsg[], opts: CallOpts, jsonMode: boolean): Promise<string> {
+  let lastError = "no model configured";
+  for (const model of MODELS()) {
+    let res: Response;
+    try {
+      res = await chatOnce(model, messages, opts, jsonMode);
+    } catch (err) {
+      lastError = `${model}: ${(err as Error).message}`;
+      continue;
+    }
+    if (res.ok) {
+      const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+      return data.choices?.[0]?.message?.content ?? "";
+    }
+    lastError = `${model}: ${res.status} ${(await res.text()).slice(0, 300)}`;
+    if (!RETRYABLE.has(res.status)) break;
+  }
+  throw new Error(`LLM request failed: ${lastError}`);
 }
 
 function schemaSystem(schema: z.ZodType, system?: string): string {
