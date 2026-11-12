@@ -2,13 +2,28 @@ import "server-only";
 import type { z } from "zod";
 import { anthropicBackend } from "./anthropic";
 import { mockBackend } from "./mock";
+import { openAiCompatBackend } from "./openai-compat";
 import { withSchemaRetry } from "./retry";
 import type { CallOpts, LlmBackend, Msg, PhotoUrl } from "./types";
 
 export { LlmSchemaError } from "./types";
 export type { CallOpts, Msg } from "./types";
 
-const backend = (): LlmBackend => (process.env.MOCK_LLM === "1" ? mockBackend : anthropicBackend);
+/** MOCK_LLM=1 → fixtures; LLM_API_KEY → OpenAI-compatible (Gemini free tier by default); else Anthropic. */
+export function pickBackend(env: Record<string, string | undefined> = process.env): "mock" | "openai" | "anthropic" {
+  if (env.MOCK_LLM === "1") return "mock";
+  if (env.LLM_API_KEY) return "openai";
+  if (env.ANTHROPIC_API_KEY) return "anthropic";
+  return "mock";
+}
+
+const BACKENDS: Record<ReturnType<typeof pickBackend>, LlmBackend> = {
+  mock: mockBackend,
+  openai: openAiCompatBackend,
+  anthropic: anthropicBackend,
+};
+
+const backend = (): LlmBackend => BACKENDS[pickBackend()];
 
 export const llm = {
   /** Structured JSON from a conversation, validated against `schema` (one retry). */
