@@ -47,7 +47,7 @@ agreed → Deal (state machine) → PayPal order → webhooks → settle
 | App | Next.js (App Router), TypeScript strict, Tailwind, pnpm |
 | Data | Postgres + pgvector, Prisma (on Render) |
 | Payments | PayPal sandbox: Orders v2, Payments v2 (authorizations), Payouts v1, Webhooks, JS SDK |
-| AI | One vision-capable Claude model with tool calling, behind `lib/llm` |
+| AI | One vision-capable LLM behind `lib/llm` (any OpenAI-compatible API; the free Gemini tier by default) |
 | Tests | Vitest |
 
 ### Deal states
@@ -141,7 +141,7 @@ See [.env.example](.env.example). Key variables:
 | `DEMO_PASSWORD` | Shared password for the demo and judge logins |
 | `CAMPUS_EMAIL_DOMAIN` | Only emails on this domain can sign in (`demo.edu`) |
 | `MOCK_PAYPAL` / `MOCK_LLM` / `NEXT_PUBLIC_MOCK_PAYPAL` | Run without keys |
-| `ANTHROPIC_API_KEY` | The model behind `lib/llm` |
+| `LLM_API_KEY` | The model behind `lib/llm`: a free Gemini key works (see `.env.example`). With none set, the app uses the mock |
 
 ### Deploy (Render)
 
@@ -163,7 +163,7 @@ Buyer (Leo) and seller (Maya) are US personal sandbox accounts; their emails and
 
 ## AI models
 
-An Anthropic Claude model (vision + tool calling) via `lib/llm`, used to parse buyer messages, phrase replies, build listings from photos and compare handover/return photos. It never calls PayPal and never sees the seller's floor.
+A vision-capable LLM via `lib/llm` (the free Gemini tier by default), used to parse buyer messages, phrase replies, build listings from photos and compare handover/return photos. It never calls PayPal and never sees the seller's floor.
 
 ## Tests
 
