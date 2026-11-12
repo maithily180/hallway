@@ -27,8 +27,25 @@ describe("openAiCompatBackend", () => {
     expect(body.response_format).toEqual({ type: "json_object" });
   });
 
-  it("throws on HTTP errors", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("quota", { status: 429 })));
+  it("throws when every model fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => new Response("quota", { status: 429 })));
     await expect(openAiCompatBackend.text([{ role: "user", content: "hi" }], {})).rejects.toThrow("429");
+  });
+
+  it("falls back to the next model when one is overloaded", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("busy", { status: 503 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] })));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(openAiCompatBackend.text([{ role: "user", content: "hi" }], {})).resolves.toBe("ok");
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body).model).toBe("gemini-3.5-flash-lite");
+  });
+
+  it("does not retry on auth errors", async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => new Response("bad key", { status: 401 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(openAiCompatBackend.text([{ role: "user", content: "hi" }], {})).rejects.toThrow("401");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
