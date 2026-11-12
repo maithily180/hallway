@@ -47,8 +47,10 @@ services:
         sync: false # e.g. https://hallway.onrender.com
       - key: PAYEE_MODE
         value: platform # set to "direct" if the spike shows Plan A works
+      - key: LLM_API_KEY
+        sync: false # free Gemini key (aistudio.google.com); used instead of ANTHROPIC_API_KEY when set
       - key: ANTHROPIC_API_KEY
-        sync: false
+        sync: false # optional; leave empty when LLM_API_KEY is set
       - key: CAMPUS_EMAIL_DOMAIN
         value: demo.edu
       - key: MOCK_PAYPAL
